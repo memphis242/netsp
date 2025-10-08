@@ -179,6 +179,7 @@ ifeq ($(OS),Windows_NT)
 
   TARGET_EXTENSION = exe
   STATIC_LIB_EXTENSION = lib
+  CC = /c/cygwin64/bin/gcc
 
   ifeq ($(shell uname -s),) # not in a bash-like shell
     CLEANUP = del /F /Q
@@ -268,8 +269,8 @@ endif
 OBJ_FILES = $(patsubst %.c,$(PATH_OBJ_FILES)%.o, $(notdir $(SRC_FILES)))
 
 # Compiler setup
-CROSS	= 
-CC = $(CROSS)gcc
+CROSS = 
+CC ?= $(CROSS)gcc
 
 COMPILER_WARNING_FLAGS = \
     -Wall -Wextra -Wpedantic -pedantic-errors \

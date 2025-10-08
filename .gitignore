@@ -1,0 +1,25 @@
+# General build artifacts
+build/
+*.exe
+*.o
+*.lst
+*.log
+*.a
+*.lib
+*.dll
+*.so
+
+# Certain source files I don't want committed
+
+
+# VSCode
+.vscode/
+
+# Unit Test
+*.txt
+*.gcda
+*.gcno
+*.gcov
+
+# Vim
+*.swp

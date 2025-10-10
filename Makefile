@@ -2,146 +2,77 @@
 
 ################################# The Prelude ##################################
 
-.PHONY: release
-.PHONY: debug
-.PHONY: clang-release
-.PHONY: msvc-release
+.PHONY: _target
+.PHONY: release release-clang release-msvc
+.PHONY: debug debug-clang debug-msvc
 .PHONY: multi-compiler help
-.PHONY: test
-.PHONY: clang-test
-.PHONY: msvc-test
+.PHONY: test test-clang test-msvc
 .PHONY: coverage
 
 ######################## Default Test Targets ########################
 
-test-vec:
+# TODO: Fix
+test:
 	@echo "Hold on. Build in progress... (output supressed until test results)"
-	@$(MAKE) _test BUILD_TYPE=TEST DS=vector > /dev/null
-	cat $(PATH_RESULTS)test_vector.txt | python $(COLORIZE_UNITY_SCRIPT)
-	@$(MAKE) coverage BUILD_TYPE=TEST DS=vector > /dev/null
-
-test-com:
-	@echo "Hold on. Build in progress... (output supressed until test results)"
-	@$(MAKE) _test BUILD_TYPE=TEST DS=conficol_shared > /dev/null
-	cat $(PATH_RESULTS)test_conficol_shared.txt | python $(COLORIZE_UNITY_SCRIPT)
-	@$(MAKE) coverage BUILD_TYPE=TEST DS=conficol_shared > /dev/null
-
-test-all:
-	@echo "Hold on. Build in progress... (output supressed until test results)"
-	@$(MAKE) --always-make test-vec > /dev/null
-	cat $(PATH_RESULTS)test_vector.txt | python $(COLORIZE_UNITY_SCRIPT)
-	cat $(PATH_RESULTS)test_conficol_shared.txt | python $(COLORIZE_UNITY_SCRIPT)
+	@$(MAKE) _test BUILD_TYPE=TEST > /dev/null
+	cat $(PATH_RESULTS)test_tcp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)test_tcp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
 	@$(MAKE) coverage BUILD_TYPE=TEST > /dev/null
 
-test-com-verbose:
-	@$(MAKE) _test BUILD_TYPE=TEST DS=conficol_shared
-	@$(MAKE) coverage BUILD_TYPE=TEST DS=conficol_shared
-
-test-vec-verbose:
-	@$(MAKE) _test BUILD_TYPE=TEST DS=vector
-	@$(MAKE) coverage BUILD_TYPE=TEST DS=vector
-
-test-all-verbose:
-	@$(MAKE) --always-make test-vec
-	@$(MAKE) coverage BUILD_TYPE=TEST
-
-######################## Clang Test Targets ########################
-
-clang-test-vec:
+# TODO: Fix
+test-clang:
 	@echo "Hold on. Clang build in progress... (output suppressed until test results)"
-	@$(MAKE) clang-_test BUILD_TYPE=TEST DS=vector > /dev/null
-	cat $(PATH_RESULTS)clang_test_vector.txt | python $(COLORIZE_UNITY_SCRIPT)
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG > /dev/null
+	cat $(PATH_RESULTS)test_tcp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)test_tcp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
 
-clang-test-com:
-	@echo "Hold on. Clang build in progress... (output suppressed until test results)"
-	@$(MAKE) clang-_test BUILD_TYPE=TEST DS=conficol_shared > /dev/null
-	cat $(PATH_RESULTS)clang_test_conficol_shared.txt | python $(COLORIZE_UNITY_SCRIPT)
-
-clang-test-all:
-	@echo "Hold on. Clang build in progress... (output suppressed until test results)"
-	@$(MAKE) --always-make clang-test-vec > /dev/null
-	cat $(PATH_RESULTS)clang_test_vector.txt | python $(COLORIZE_UNITY_SCRIPT)
-	cat $(PATH_RESULTS)clang_test_conficol_shared.txt | python $(COLORIZE_UNITY_SCRIPT)
-
-clang-test-com-verbose:
-	@$(MAKE) clang-_test BUILD_TYPE=TEST DS=conficol_shared
-
-clang-test-vec-verbose:
-	@$(MAKE) clang-_test BUILD_TYPE=TEST DS=vector
-
-clang-test-all-verbose:
-	@$(MAKE) --always-make clang-test-vec
-
-######################### MSVC Test Targets #########################
-
-msvc-test-vec:
+# TODO: Fix
+test-msvc:
 	@echo "Hold on. MSVC build in progress... (output suppressed until test results)"
-	@$(MAKE) msvc-_test BUILD_TYPE=TEST DS=vector > /dev/null
-	cat $(PATH_RESULTS)msvc_test_vector.txt | python $(COLORIZE_UNITY_SCRIPT)
-
-msvc-test-com:
-	@echo "Hold on. MSVC build in progress... (output suppressed until test results)"
-	@$(MAKE) msvc-_test BUILD_TYPE=TEST DS=conficol_shared > /dev/null
-	cat $(PATH_RESULTS)msvc_test_conficol_shared.txt | python $(COLORIZE_UNITY_SCRIPT)
-
-msvc-test-all:
-	@echo "Hold on. MSVC build in progress... (output suppressed until test results)"
-	@$(MAKE) --always-make msvc-test-vec > /dev/null
-	cat $(PATH_RESULTS)msvc_test_vector.txt | python $(COLORIZE_UNITY_SCRIPT)
-	cat $(PATH_RESULTS)msvc_test_conficol_shared.txt | python $(COLORIZE_UNITY_SCRIPT)
-
-msvc-test-com-verbose:
-	@$(MAKE) msvc-_test BUILD_TYPE=TEST DS=conficol_shared
-
-msvc-test-vec-verbose:
-	@$(MAKE) msvc-_test BUILD_TYPE=TEST DS=vector
-
-msvc-test-all-verbose:
-	@$(MAKE) --always-make msvc-test-vec
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=MSVC > /dev/null
+	cat $(PATH_RESULTS)test_tcp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)test_tcp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
 
 ######################### Other Targets #########################
 
 release:
-	@$(MAKE) lib BUILD_TYPE=RELEASE DS=ALL
+	@$(MAKE) _target BUILD_TYPE=RELEASE
 
-libvector: release-vec
-release-vec:
-	@$(MAKE) lib BUILD_TYPE=RELEASE DS=vector
+release-clang:
+	@$(MAKE) _target BUILD_TYPE=RELEASE COMPILER=CLANG
+
+release-msvc:
+	@$(MAKE) _target BUILD_TYPE=RELEASE COMPILER=MSVC
 
 debug:
-	@$(MAKE) lib BUILD_TYPE=DEBUG DS=ALL
+	@$(MAKE) _target BUILD_TYPE=DEBUG
 
-debug-vec:
-	@$(MAKE) lib BUILD_TYPE=DEBUG DS=vector
+debug-clang:
+	@$(MAKE) _target BUILD_TYPE=DEBUG COMPILER=CLANG
 
-# Clang targets
-clang-libvector: clang-release-vec
-clang-release-vec:
-	@$(MAKE) clang-lib BUILD_TYPE=RELEASE DS=vector
+debug-msvc:
+	@$(MAKE) _target BUILD_TYPE=DEBUG COMPILER=MSVC
 
-# MSVC targets  
-msvc-libvector: msvc-release-vec
-msvc-release-vec:
-	@$(MAKE) msvc-lib BUILD_TYPE=RELEASE DS=vector
 
 # Multi-compiler target to build with all three compilers
 multi-compiler:
-	@echo "Building with GCC..."
-	@$(MAKE) libvector
+	@echo "Building with Cygwin GCC..."
+	@$(MAKE) release
 	@echo "Building with Clang..."
-	@$(MAKE) clang-libvector  
+	@$(MAKE) release-clang  
 	@echo "Building with MSVC..."
-	@$(MAKE) msvc-libvector
+	@$(MAKE) release-msvc
 	@echo
 	@echo "----------------------------------------"
 	@echo -e "\033[32;1mAll three compilers completed!\033[0m"
-	@echo "Libraries built:"
-	@echo "  - GCC:   $(PATH_BUILD)libvector.$(STATIC_LIB_EXTENSION)"
-	@echo "  - Clang: $(PATH_BUILD)libclang_libvector.$(STATIC_LIB_EXTENSION)"
-	@echo "  - MSVC:  $(PATH_BUILD)libmsvc_libvector.$(STATIC_LIB_EXTENSION)"
+	@echo "Binaries built:"
+	@echo "  - GCC:   $(PATH_BUILD)tcp_server.exe       : $(PATH_BUILD)tcp_client.exe"
+	@echo "  - Clang: $(PATH_BUILD)clang/tcp_server.exe : $(PATH_BUILD)clang/tcp_client.exe"
+	@echo "  - MSVC:  $(PATH_BUILD)msvc/tcp_server.exe  : $(PATH_BUILD)msvc/tcp_client.exe"
 	@echo "----------------------------------------"
 
 # Help target
+# FIXME: Update help
 help:
 	@echo "Available targets:"
 	@echo "  libvector         - Build static library with GCC (default)"
@@ -179,7 +110,6 @@ ifeq ($(OS),Windows_NT)
 
   TARGET_EXTENSION = exe
   STATIC_LIB_EXTENSION = lib
-  CC = /c/cygwin64/bin/gcc
 
   ifeq ($(shell uname -s),) # not in a bash-like shell
     CLEANUP = del /F /Q
@@ -198,8 +128,9 @@ else
 
 endif
 
+# Set default compiler and build type
+CC ?= /c/cygwin64/bin/gcc # Cygwin GCC for POSIX on Windows
 BUILD_TYPE ?= RELEASE
-DS ?= ALL
 
 # Relevant paths
 PATH_UNITY        = Unity/src/

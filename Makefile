@@ -1,6 +1,6 @@
 .POSIX:
 
-################################# The Prelude ##################################
+################################# The Phonies ##################################
 
 .PHONY: _target
 .PHONY: release release-clang release-msvc
@@ -9,31 +9,84 @@
 .PHONY: test test-clang test-msvc
 .PHONY: coverage
 
-######################## Default Test Targets ########################
+############################# Default Test Targets #############################
 
 # TODO: Fix
 test:
 	@echo "Hold on. Build in progress... (output supressed until test results)"
-	@$(MAKE) _test BUILD_TYPE=TEST > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST TEST_TARGET=TCP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST TEST_TARGET=TCP_SERVER > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST TEST_TARGET=UDP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST TEST_TARGET=UDP_CLIENT > /dev/null
 	cat $(PATH_RESULTS)test_tcp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
 	cat $(PATH_RESULTS)test_tcp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)test_udp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)test_udp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
 	@$(MAKE) coverage BUILD_TYPE=TEST > /dev/null
+
+# TODO: Fix
+fuzztest:
+	@echo "Hold on. Build in progress... (output supressed until test results)"
+	@$(MAKE) _test BUILD_TYPE=TEST TEST_TARGET=FUZZ_TCP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST TEST_TARGET=FUZZ_TCP_SERVER > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST TEST_TARGET=FUZZ_UDP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST TEST_TARGET=FUZZ_UDP_CLIENT > /dev/null
+	cat $(PATH_RESULTS)fuzztest_tcp_server.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+	cat $(PATH_RESULTS)fuzztest_tcp_client.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+	cat $(PATH_RESULTS)fuzztest_udp_server.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+	cat $(PATH_RESULTS)fuzztest_udp_client.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
 
 # TODO: Fix
 test-clang:
 	@echo "Hold on. Clang build in progress... (output suppressed until test results)"
-	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG > /dev/null
-	cat $(PATH_RESULTS)test_tcp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
-	cat $(PATH_RESULTS)test_tcp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG TEST_TARGET=TCP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG TEST_TARGET=TCP_SERVER > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG TEST_TARGET=UDP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG TEST_TARGET=UDP_CLIENT > /dev/null
+	cat $(PATH_RESULTS)clang_test_tcp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)clang_test_tcp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)clang_test_udp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)clang_test_udp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
+	@$(MAKE) coverage BUILD_TYPE=TEST > /dev/null
+
+# TODO: Fix
+clang-fuzztest:
+	@echo "Hold on. Build in progress... (output supressed until test results)"
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG TEST_TARGET=FUZZ_TCP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG TEST_TARGET=FUZZ_TCP_SERVER > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG TEST_TARGET=FUZZ_UDP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=CLANG TEST_TARGET=FUZZ_UDP_CLIENT > /dev/null
+	cat $(PATH_RESULTS)clang_fuzztest_tcp_server.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+	cat $(PATH_RESULTS)clang_fuzztest_tcp_client.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+	cat $(PATH_RESULTS)clang_fuzztest_udp_server.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+	cat $(PATH_RESULTS)clang_fuzztest_udp_client.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
 
 # TODO: Fix
 test-msvc:
-	@echo "Hold on. MSVC build in progress... (output suppressed until test results)"
-	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=MSVC > /dev/null
-	cat $(PATH_RESULTS)test_tcp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
-	cat $(PATH_RESULTS)test_tcp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
+	@echo "Hold on. msvc build in progress... (output suppressed until test results)"
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=MSVC TEST_TARGET=TCP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=MSVC TEST_TARGET=TCP_SERVER > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=MSVC TEST_TARGET=UDP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=MSVC TEST_TARGET=UDP_CLIENT > /dev/null
+	cat $(PATH_RESULTS)msvc_test_tcp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)msvc_test_tcp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)msvc_test_udp_server.txt | python $(COLORIZE_UNITY_SCRIPT)
+	cat $(PATH_RESULTS)msvc_test_udp_client.txt | python $(COLORIZE_UNITY_SCRIPT)
+	@$(MAKE) coverage BUILD_TYPE=TEST > /dev/null
 
-######################### Other Targets #########################
+# TODO: Fix
+msvc-fuzztest:
+	@echo "Hold on. Build in progress... (output supressed until test results)"
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=msvc TEST_TARGET=FUZZ_TCP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=msvc TEST_TARGET=FUZZ_TCP_SERVER > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=msvc TEST_TARGET=FUZZ_UDP_CLIENT > /dev/null
+	@$(MAKE) _test BUILD_TYPE=TEST COMPILER=msvc TEST_TARGET=FUZZ_UDP_CLIENT > /dev/null
+	cat $(PATH_RESULTS)msvc_fuzztest_tcp_server.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+	cat $(PATH_RESULTS)msvc_fuzztest_tcp_client.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+	cat $(PATH_RESULTS)msvc_fuzztest_udp_server.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+	cat $(PATH_RESULTS)msvc_fuzztest_udp_client.txt | python $(COLORIZE_FUZZTEST_SCRIPT)
+
+################################# Build Targets ################################
 
 release:
 	@$(MAKE) _target BUILD_TYPE=RELEASE
@@ -53,7 +106,6 @@ debug-clang:
 debug-msvc:
 	@$(MAKE) _target BUILD_TYPE=DEBUG COMPILER=MSVC
 
-
 # Multi-compiler target to build with all three compilers
 multi-compiler:
 	@echo "Building with Cygwin GCC..."
@@ -71,42 +123,12 @@ multi-compiler:
 	@echo "  - MSVC:  $(PATH_BUILD)msvc/tcp_server.exe  : $(PATH_BUILD)msvc/tcp_client.exe"
 	@echo "----------------------------------------"
 
-# Help target
-# FIXME: Update help
-help:
-	@echo "Available targets:"
-	@echo "  libvector         - Build static library with GCC (default)"
-	@echo "  clang-libvector   - Build static library with Clang"
-	@echo "  msvc-libvector    - Build static library with MSVC"
-	@echo "  multi-compiler    - Build with all three compilers"
-	@echo ""
-	@echo "Test targets:"
-	@echo "  test-vec          - Run vector unit tests with GCC"
-	@echo "  test-com          - Run conficol_shared unit tests with GCC"
-	@echo "  test-all          - Run all unit tests with GCC"
-	@echo "  clang-test-vec    - Run vector unit tests with Clang"
-	@echo "  clang-test-com    - Run conficol_shared unit tests with Clang"
-	@echo "  clang-test-all    - Run all unit tests with Clang"
-	@echo "  msvc-test-vec     - Run vector unit tests with MSVC"
-	@echo "  msvc-test-com     - Run conficol_shared unit tests with MSVC"
-	@echo "  msvc-test-all     - Run all unit tests with MSVC"
-	@echo ""
-	@echo "Other targets:"
-	@echo "  clean             - Clean all build artifacts"
-	@echo "  help              - Show this help message"
-	@echo ""
-	@echo "Compiler-specific features:"
-	@echo "  GCC:   Full warning set + GCC analyzer + sanitizers + coverage"
-	@echo "  Clang: Clang-specific warnings + static analyzer + thread safety"
-	@echo "  MSVC:  /W4 /analyze + MSVC-specific static analysis"
+############################### OS-Specific Setup ##############################
 
-######################### Environment Setup #########################
-
-CLEANUP = rm -f
-MKDIR = mkdir -p
-TARGET_EXTENSION=exe
 # Set the OS-specific tool cmds / executable extensions
 ifeq ($(OS),Windows_NT)
+
+  CC ?= /c/cygwin64/bin/gcc # Cygwin GCC for POSIX on Windows
 
   TARGET_EXTENSION = exe
   STATIC_LIB_EXTENSION = lib
@@ -119,8 +141,10 @@ ifeq ($(OS),Windows_NT)
     MKDIR = mkdir -p
   endif
 
-else
+else # Hopefully a Unix/Linux (POSIX-compliant) system
 
+  CROSS ?= 
+  CC ?= $(CROSS)gcc
   TARGET_EXTENSION = out
   STATIC_LIB_EXTENSION = a
   CLEANUP = rm -f
@@ -128,9 +152,17 @@ else
 
 endif
 
-# Set default compiler and build type
-CC ?= /c/cygwin64/bin/gcc # Cygwin GCC for POSIX on Windows
+################################## Build Setup #################################
+
+# Default compiler is GCC
+COMPILER ?= GCC
+
+# Default build type is release
 BUILD_TYPE ?= RELEASE
+
+# Useful scripts
+COLORIZE_CPPCHECK_SCRIPT = $(PATH_SCRIPTS)colorize_cppcheck.py
+COLORIZE_UNITY_SCRIPT = $(PATH_SCRIPTS)colorize_unity.py
 
 # Relevant paths
 PATH_UNITY        = Unity/src/
@@ -139,56 +171,98 @@ PATH_INC          = inc/
 PATH_CFG          = cfg/
 PATH_DEP          = submodules/
 PATH_TEST_FILES   = test/
-PATH_BUILD        = build/
-REL_DIR           = rel/
-DBG_DIR           = dbg/
-OBJ_DIR           = objs/
+PATH_BUILD_BASE   = build/
+ifeq($(COMPILER), CLANG)
+  PATH_BUILD = $(PATH_BUILD_BASE)clang/
+else ifeq($(COMPILER), MSVC)
+  PATH_BUILD = $(PATH_BUILD_BASE)msvc/
+endif
+PATH_BUILD       ?= $(PATH_BUILD_BASE)gcc/
+REL_DIR           = $(PATH_BUILD)rel/
+DBG_DIR           = $(PATH_BUILD)dbg/
+OBJ_DIRNAME       = objs/
 ifeq ($(BUILD_TYPE), RELEASE)
-	PATH_OBJ_FILES = $(PATH_BUILD)$(REL_DIR)$(OBJ_DIR)
+  PATH_OBJ_FILES = $(REL_DIR)$(OBJ_DIRNAME)
 else
-	PATH_OBJ_FILES = $(PATH_BUILD)$(DBG_DIR)$(OBJ_DIR)
+  PATH_OBJ_FILES = $(DBG_DIR)$(OBJ_DIRNAME)
 endif
 PATH_RESULTS      = $(PATH_BUILD)results/
 PATH_PROFILE      = $(PATH_BUILD)profile/
-PATH_BENCHMARK	   = benchmark/
+PATH_BENCHMARK    = benchmark/
 PATH_SCRIPTS      = scripts/
-BUILD_DIRS        = $(PATH_BUILD) $(PATH_OBJ_FILES)
-
-COLORIZE_CPPCHECK_SCRIPT = $(PATH_SCRIPTS)colorize_cppcheck.py
-COLORIZE_UNITY_SCRIPT = $(PATH_SCRIPTS)colorize_unity.py
+BUILD_DIRS        = $(PATH_BUILD_BASE) $(PATH_BUILD) $(PATH_OBJ_FILES)
 
 # Lists of files
+# For each set of source files, have a corresponding set of header files, as applicable.
+# This is a dumb way to set up some form of dependency-tree between src files and
+# their dependencies. It's painful to do this in detail /w Make when you want at-least
+# semi-generic rules for building object files... This is where something like CMake
+# shines, IMO.
 
+# There are several targets here. Separate TCP and UDP server and client executables,
+# and tests for each. The test exeuctables may be used to test some internal fcns
+# if I am truly concerned about that, but the focus of the tests shall be to test
+# the interface between the servers and clients. So, the test executables shall
+# effectively act as either server or client to the corresponding client or server,
+# respectively. Furthermore, whether the UUT is a client or server app, they shall
+# both have a way to communicate with the test executable (TBD) certain internal
+# state data as part of that testing. There shall also be a fuzzing test executable
+# for each.
+#
+# Given that, in total, there will be 4 main demo executables (TCP server/client
+# + UDP server/client) and at least 8 test executables (functional TCP client/server
+# + function UDP client/server + fuzzing version of the aforementioned + possible
+# internal fcn testers), for a total of 12+ targets.
+#
+# All 4 main targets shall be built for every debug/release build! And of course,
+# all 12+ targets shall be built for any test build.
+
+SHARED_SRC_FILES =
+SHARED_HDR_FILES =
+
+TCP_SERVER_SRC_FILES += $(SHARED_SRC_FILES)
+TCP_SERVER_HDR_FILES += $(SHARED_HDR_FILES)
+TCP_CLIENT_SRC_FILES += $(SHARED_SRC_FILES)
+TCP_CLIENT_HDR_FILES += $(SHARED_HDR_FILES)
+
+UDP_SERVER_SRC_FILES += $(SHARED_SRC_FILES)
+UDP_SERVER_HDR_FILES += $(SHARED_HDR_FILES)
+UDP_CLIENT_SRC_FILES += $(SHARED_SRC_FILES)
+UDP_CLIENT_HDR_FILES += $(SHARED_HDR_FILES)
+
+TCP_SERVER_SRC_FILES += $(PATH_SRC)tcp_server.c
+TCP_SERVER_HDR_FILES += $(PATH_CFG)tcp_cfg.h
+TCP_CLIENT_SRC_FILES += $(PATH_SRC)tcp_client.c
+TCP_CLIENT_HDR_FILES += $(PATH_CFG)tcp_cfg.h
+
+UDP_SERVER_SRC_FILES += $(PATH_SRC)udp_server.c
+UDP_SERVER_HDR_FILES += $(PATH_CFG)tcp_cfg.h
+UDP_CLIENT_SRC_FILES += $(PATH_SRC)udp_client.c
+UDP_CLIENT_HDR_FILES += $(PATH_CFG)tcp_cfg.h
+
+# If I was only using one compiler, I wouldn't bother adding Unity as a submodule
+# and probably opt to instead pull in a system-wide installation, since the
+# Unity interface really doesn't change much. However, since I've got a triple
+# compiler setup, I'll need to build each separately.
 UNITY_SRC_FILES = $(wildcard $(PATH_UNITY)*.c)
 UNITY_HDR_FILES = $(wildcard $(PATH_UNITY)*.h)
 UNITY_OBJ_FILES = $(patsubst %.c, $(PATH_OBJ_FILES)%.o, $(notdir $(UNITY_SRC_FILES)))
 UNITY_LIB = unity
 
-COLLECTION_LIB_NAME = conficol
-
-SHARED_SRC_FILES = $(PATH_SRC)conficol_shared.c
-SHARED_HDR_FILES = $(PATH_INC)conficol_shared.h
-SRC_FILES += $(SHARED_SRC_FILES)
-HDR_FILES += $(SHARED_HDR_FILES)
-ifeq ($(DS), ALL)
-  SRC_FILES += $(wildcard $(PATH_SRC)*.c)
-  HDR_FILES += $(wildcard $(PATH_INC)*.h) $(wildcard $(PATH_CFG)$(DS)_cfg.h) $(PATH_DEP)
-  SRC_TEST_FILES = $(wildcard $(PATH_TEST_FILES)*.c)
-  LIB_FILE = $(PATH_BUILD)lib$(COLLECTION_LIB_NAME).$(STATIC_LIB_EXTENSION)
-else
-  SRC_FILES += $(PATH_SRC)$(DS).c
-  HDR_FILES += $(PATH_INC)$(DS).h $(wildcard $(PATH_CFG)$(DS)_cfg.h) $(PATH_DEP)
-  SRC_TEST_FILES = $(PATH_TEST_FILES)test_$(DS).c
-  LIB_FILE = $(PATH_BUILD)lib$(DS).$(STATIC_LIB_EXTENSION)
-endif
+SRC_TEST_FILES   = $(wildcard $(PATH_TEST_FILES)*.c)
 TEST_EXECUTABLES = $(patsubst %.c, $(PATH_BUILD)%.$(TARGET_EXTENSION), $(notdir $(SRC_TEST_FILES)))
-LIB_LIST_FILE = $(patsubst %.$(STATIC_LIB_EXTENSION), $(PATH_BUILD)%.lst, $(notdir $(LIB_FILE)))
-TEST_LIST_FILE = $(patsubst %.$(TARGET_EXTENSION), $(PATH_BUILD)%.lst, $(notdir $(TEST_EXECUTABLES)))
-TEST_OBJ_FILES = $(patsubst %.c, $(PATH_OBJ_FILES)%.o, $(notdir $(SRC_TEST_FILES)))
+
 RESULTS = $(patsubst %.c, $(PATH_RESULTS)%.txt, $(notdir $(SRC_TEST_FILES)))
 
-# List of all gcov coverage files I'm expecting
+# TODO: Dependency files. I'll probably try out some cryptography libraries at some point - libsodium?
+#       It would be good practice with various cryptographic approaches to fight against various
+#       network attack vectors!
+DEP_SRC_FILES =
+DEP_HDR_FILES =
+
+# List of all coverage report files I'm expecting
 GCOV_FILES = $(SRC_FILES:.c=.c.gcov)
+# TODO: For MSVC, Microsoft.CodeCoverage.Console is the command-line tool alternative. Need to set that up...
 
 ifeq ($(BUILD_TYPE), TEST)
   BUILD_DIRS += $(PATH_RESULTS)
@@ -196,65 +270,101 @@ else ifeq ($(BUILD_TYPE), PROFILE)
   BUILD_DIRS += $(PATH_PROFILE)
 endif
 
-# List of all object files we're expecting for the data structures
+# List of all object files we're expecting for the main apps
 OBJ_FILES = $(patsubst %.c,$(PATH_OBJ_FILES)%.o, $(notdir $(SRC_FILES)))
+# Separate var object files for the tests so that we can build the test files
+# with different warning levels...
+TEST_OBJ_FILES = $(patsubst %.c, $(PATH_OBJ_FILES)%.o, $(notdir $(SRC_TEST_FILES)))
+# Same idea with dependency object files...
+DEP_OBJ_FILES = $(patsubst %.c, %(PATH_OBJ_FILES)%.o, $(notdir $(DEP_SRC_FILES)))
 
-# Compiler setup
-CROSS = 
-CC ?= $(CROSS)gcc
+############################ COMPILER-SPECIFIC SETUP ###########################
 
-COMPILER_WARNING_FLAGS = \
-    -Wall -Wextra -Wpedantic -pedantic-errors \
-    -Wconversion -Wdouble-promotion -Wnull-dereference \
-    -Wwrite-strings -Wformat=2 -Wformat-overflow=2 \
-    -Wformat-signedness -Wuseless-cast -Wstrict-prototypes \
-    -Wcast-align=strict -Wcast-qual \
-    -Wimplicit-fallthrough=3 -Wswitch-default \
-    -Wswitch-enum -Wfloat-equal -Wuse-after-free=2 \
-    -Wdeprecated-declarations -Wmissing-prototypes -Wparentheses \
-    -Wreturn-type -Wlogical-op -Wstrict-aliasing \
-    -Wuninitialized -Wmaybe-uninitialized -Wshadow \
-    -Wduplicated-cond \
-    -Walloc-zero -Walloc-size
+ifeq($(COMPILER), GCC)
 
-# Includes some -Wno-... flags for warnings that I'd normally want for my lib
-# src but **not** for my test file, which intentionally has all sorts of
-# naughty shenanigans going on
-COMPILER_WARNINGS_TEST_BUILD = \
-    -Wall -Wextra -Wpedantic -pedantic-errors \
-    -Wconversion -Wdouble-promotion -Wnull-dereference \
-    -Wwrite-strings -Wformat=2 -Wformat-overflow=2 \
-    -Wformat-signedness \
-    -Wcast-align=strict -Wcast-qual \
-    -Wimplicit-fallthrough=3 -Wswitch-default \
-    -Wswitch-enum -Wfloat-equal -Wuse-after-free=2 \
-    -Wdeprecated-declarations -Wmissing-prototypes -Wparentheses \
-    -Wreturn-type -Wlogical-op -Wstrict-aliasing \
-    -Wuninitialized -Wmaybe-uninitialized -Wshadow \
-    -Walloc-zero -Walloc-size \
-    -Wno-analyzer-use-of-uninitialized-value -Wno-uninitialized \
-    -Wno-maybe-uninitialized
+  # TODO: Finish going through all GCC warnings
+  COMPILER_WARNING_MAIN_APP = \
+      -Wall -Wextra -Wpedantic -pedantic-errors \
+      -Wconversion -Wdouble-promotion -Wnull-dereference \
+      -Wwrite-strings -Wformat=2 -Wformat-overflow=2 \
+      -Wformat-signedness -Wuseless-cast -Wstrict-prototypes \
+      -Wcast-align=strict -Wcast-qual \
+      -Wimplicit-fallthrough=3 -Wswitch-default \
+      -Wswitch-enum -Wfloat-equal -Wuse-after-free=2 \
+      -Wdeprecated-declarations -Wmissing-prototypes -Wparentheses \
+      -Wreturn-type -Wlogical-op -Wstrict-aliasing \
+      -Wuninitialized -Wmaybe-uninitialized -Wshadow \
+      -Wduplicated-cond \
+      -Walloc-zero -Walloc-size
 
-# Consider -Wmismatched-dealloc
-COMPILER_SANITIZERS = \
-    -fsanitize=undefined -fsanitize-trap \
-    -fsanitize=enum  -fsanitize=bool -fsanitize=bounds
+  # Includes some -Wno-... flags for warnings that I'd normally want for my app/lib
+  # src but **not** for my test file, which intentionally has all sorts of
+  # naughty shenanigans going on... 😉
+  COMPILER_WARNINGS_TEST = \
+      -Wall -Wextra -Wpedantic -pedantic-errors \
+      -Wconversion -Wdouble-promotion -Wnull-dereference \
+      -Wwrite-strings -Wformat=2 -Wformat-overflow=2 \
+      -Wformat-signedness \
+      -Wcast-align=strict -Wcast-qual \
+      -Wimplicit-fallthrough=3 -Wswitch-default \
+      -Wswitch-enum -Wfloat-equal -Wuse-after-free=2 \
+      -Wdeprecated-declarations -Wmissing-prototypes -Wparentheses \
+      -Wreturn-type -Wlogical-op -Wstrict-aliasing \
+      -Wuninitialized -Wmaybe-uninitialized -Wshadow \
+      -Walloc-zero -Walloc-size \
+      -Wno-analyzer-use-of-uninitialized-value -Wno-uninitialized \
+      -Wno-maybe-uninitialized
 
-LIB_OPTIMIZATION_FLAGS ?=
-ifdef LTO
-LIB_OPTIMIZATION_FLAGS = -ffunction-sections -fdata-sections # Facilitates link-time optimization (LDO)
-endif
-COMPILER_OPTIMIZATION_LEVEL_DEBUG = -Og -g3
-COMPILER_OPTIMIZATION_LEVEL_SPEED = -O3 $(LIB_OPTIMIZATION_FLAGS)
-COMPILER_OPTIMIZATION_LEVEL_SPACE = -Os $(LIB_OPTIMIZATION_FLAGS)
-COMPILER_STANDARD = -std=c23
-INCLUDE_PATHS = -I. -I$(PATH_INC) -I$(PATH_UNITY) -I$(PATH_CFG) -I$(PATH_DEP)
-COMMON_DEFINES =
-DIAGNOSTIC_FLAGS = -fdiagnostics-color
-COMPILER_STATIC_ANALYZER = -fanalyzer
+  # Same idea for dependencies... 😉😉
+  COMPILER_WARNINGS_DEP = \
+      -Wall -Wextra -Wpedantic -pedantic-errors \
+      -Wconversion -Wdouble-promotion -Wnull-dereference \
+      -Wwrite-strings -Wformat=2 -Wformat-overflow=2 \
+      -Wformat-signedness \
+      -Wcast-align=strict -Wcast-qual \
+      -Wimplicit-fallthrough=3 -Wswitch-default \
+      -Wswitch-enum -Wfloat-equal -Wuse-after-free=2 \
+      -Wdeprecated-declarations -Wmissing-prototypes -Wparentheses \
+      -Wreturn-type -Wlogical-op -Wstrict-aliasing \
+      -Wuninitialized -Wmaybe-uninitialized -Wshadow \
+      -Walloc-zero -Walloc-size \
+      -Wno-analyzer-use-of-uninitialized-value -Wno-uninitialized \
+      -Wno-maybe-uninitialized
 
-ifeq ($(BUILD_TYPE), TEST)
-COMMON_DEFINES += -DMAX_VEC_LEN=UINT32_MAX
+  # Consider -Wmismatched-dealloc and -fsanitize=memory
+  COMPILER_SANITIZERS = \
+      -fsanitize=undefined -fsanitize-trap \
+      -fsanitize=enum  -fsanitize=bool -fsanitize=bounds
+
+  ifneq($(OS), Windows_NT)
+    COMPILER_SANITIZERS += -fsanitize=address -fno-omit-frame-pointer \
+                           -fsanitize=undefined -fno-sanitize-recover=all \
+                           -fsanitize=thread
+  endif
+
+# TODO: RETURN TO HERE
+
+  LIB_OPTIMIZATION_FLAGS ?=
+  ifdef LTO
+  LIB_OPTIMIZATION_FLAGS = -ffunction-sections -fdata-sections # Facilitates link-time optimization (LDO)
+  endif
+  COMPILER_OPTIMIZATION_LEVEL_DEBUG = -Og -g3
+  COMPILER_OPTIMIZATION_LEVEL_SPEED = -O3 $(LIB_OPTIMIZATION_FLAGS)
+  COMPILER_OPTIMIZATION_LEVEL_SPACE = -Os $(LIB_OPTIMIZATION_FLAGS)
+  COMPILER_STANDARD = -std=c23
+  INCLUDE_PATHS = -I. -I$(PATH_INC) -I$(PATH_UNITY) -I$(PATH_CFG) -I$(PATH_DEP)
+  COMMON_DEFINES =
+  DIAGNOSTIC_FLAGS = -fdiagnostics-color
+  COMPILER_STATIC_ANALYZER = -fanalyzer
+
+  ifeq ($(BUILD_TYPE), TEST)
+  COMMON_DEFINES += -DMAX_VEC_LEN=UINT32_MAX
+  endif
+
+else ifeq($(COMPILER), CLANG)
+
+else ifeq($(COMPILER), MSVC)
+
 endif
 
 # Compile up the compiler flags
@@ -776,16 +886,47 @@ $(PATH_BUILD):
 $(PATH_PROFILE):
 	$(MKDIR) $@
 
+# Help target
+# FIXME: Update help
+help:
+	@echo "Available targets:"
+	@echo "  libvector         - Build static library with GCC (default)"
+	@echo "  clang-libvector   - Build static library with Clang"
+	@echo "  msvc-libvector    - Build static library with MSVC"
+	@echo "  multi-compiler    - Build with all three compilers"
+	@echo ""
+	@echo "Test targets:"
+	@echo "  test-vec          - Run vector unit tests with GCC"
+	@echo "  test-com          - Run conficol_shared unit tests with GCC"
+	@echo "  test-all          - Run all unit tests with GCC"
+	@echo "  clang-test-vec    - Run vector unit tests with Clang"
+	@echo "  clang-test-com    - Run conficol_shared unit tests with Clang"
+	@echo "  clang-test-all    - Run all unit tests with Clang"
+	@echo "  msvc-test-vec     - Run vector unit tests with MSVC"
+	@echo "  msvc-test-com     - Run conficol_shared unit tests with MSVC"
+	@echo "  msvc-test-all     - Run all unit tests with MSVC"
+	@echo ""
+	@echo "Other targets:"
+	@echo "  clean             - Clean all build artifacts"
+	@echo "  help              - Show this help message"
+	@echo ""
+	@echo "Compiler-specific features:"
+	@echo "  GCC:   Full warning set + GCC analyzer + sanitizers + coverage"
+	@echo "  Clang: Clang-specific warnings + static analyzer + thread safety"
+	@echo "  MSVC:  /W4 /analyze + MSVC-specific static analysis"
+
+######################### Environment Setup #########################
+
 # Clean rule to remove generated files
 .PHONY: clean
 clean:
 	@echo
-	$(CLEANUP) $(PATH_BUILD)$(REL_DIR)$(OBJ_DIR)*.o
-	$(CLEANUP) $(PATH_BUILD)$(DBG_DIR)$(OBJ_DIR)*.o
-	$(CLEANUP) $(PATH_BUILD)$(REL_DIR)$(OBJ_DIR)*.obj
-	$(CLEANUP) $(PATH_BUILD)$(DBG_DIR)$(OBJ_DIR)*.obj
-	$(CLEANUP) $(PATH_BUILD)$(REL_DIR)$(OBJ_DIR)*.gcda
-	$(CLEANUP) $(PATH_BUILD)$(DBG_DIR)$(OBJ_DIR)*.gcno
+	$(CLEANUP) $(REL_DIR)$(OBJ_DIRNAME)*.o
+	$(CLEANUP) $(DBG_DIR)$(OBJ_DIRNAME)*.o
+	$(CLEANUP) $(REL_DIR)$(OBJ_DIRNAME)*.obj
+	$(CLEANUP) $(DBG_DIR)$(OBJ_DIRNAME)*.obj
+	$(CLEANUP) $(REL_DIR)$(OBJ_DIRNAME)*.gcda
+	$(CLEANUP) $(DBG_DIR)$(OBJ_DIRNAME)*.gcno
 	$(CLEANUP) $(PATH_BUILD)*.$(TARGET_EXTENSION)
 	$(CLEANUP) $(PATH_BUILD)*.exe
 	$(CLEANUP) $(PATH_BUILD)clang_*

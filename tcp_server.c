@@ -2,7 +2,8 @@
  * @file tcp-server.c
  * @brief A demo tcp server application that listens to up to 4 connections and
  *        whos API consists of 2 requests (client → server) and 2 cmds (user →
- *        server → client). The server and clients shall use IPv4.
+ *        server → client). The server and clients shall use IPv4. The reqs/cmds
+ *        are text-based.
  */
 
 /*************************** File Header Inclusions ***************************/

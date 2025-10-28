@@ -342,24 +342,21 @@ ifeq($(COMPILER), GCC)
                            -fsanitize=thread
   endif
 
-# TODO: RETURN TO HERE
-
   LIB_OPTIMIZATION_FLAGS ?=
-  ifdef LTO
-  LIB_OPTIMIZATION_FLAGS = -ffunction-sections -fdata-sections # Facilitates link-time optimization (LDO)
-  endif
+
   COMPILER_OPTIMIZATION_LEVEL_DEBUG = -Og -g3
   COMPILER_OPTIMIZATION_LEVEL_SPEED = -O3 $(LIB_OPTIMIZATION_FLAGS)
   COMPILER_OPTIMIZATION_LEVEL_SPACE = -Os $(LIB_OPTIMIZATION_FLAGS)
+
   COMPILER_STANDARD = -std=c23
+
   INCLUDE_PATHS = -I. -I$(PATH_INC) -I$(PATH_UNITY) -I$(PATH_CFG) -I$(PATH_DEP)
   COMMON_DEFINES =
+
   DIAGNOSTIC_FLAGS = -fdiagnostics-color
   COMPILER_STATIC_ANALYZER = -fanalyzer
 
-  ifeq ($(BUILD_TYPE), TEST)
-  COMMON_DEFINES += -DMAX_VEC_LEN=UINT32_MAX
-  endif
+# TODO: RETURN TO HERE
 
 else ifeq($(COMPILER), CLANG)
 

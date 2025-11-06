@@ -16,14 +16,14 @@
 #include <assert.h>
 
 // POSIX headers
-#include <errno.h> // FIXME: Is this POSIX?
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h> // FIXME: What is this for?
-#include <arpa/inet.h> // FIXME: What is this for?
-#include <sys/wait.h>
-#include <signal.h> // FIXME: Is this POSIX or Unix?
+#include <errno.h> // C standard header, used by lots of POSIX API and UNIX system calls
+#include <sys/types.h> // Defines many types used by POSIX APIs, e.g., pid_t
+#include <sys/socket.h> // POSIX Sockets API
+#include <netinet/in.h> // IP address structs
+#include <netdb.h> // Hostname address lookups that come from DNS records
+#include <arpa/inet.h> // Functions to go from host ↔ network
+#include <sys/wait.h> // POSIX: process control through waitpid
+#include <signal.h> // POSIX + C subset : signal handling
 
 /***************************** Local Declarations *****************************/
 // Macros
@@ -50,7 +50,6 @@ static void   sig_child_handler(int s); // FIXME: What is the actual argument ty
 static void * get_ip_addr( const struct sockaddr * sa ); // FIXME: I don't like this API
 
 // Extern declarations
-// FIXME: Declare errno as external import? Or is that covered in the hdr includes?
 
 /******************************* Main Function ********************************/
 

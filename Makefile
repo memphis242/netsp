@@ -108,7 +108,7 @@ debug-msvc:
 
 # Multi-compiler target to build with all three compilers
 multi-compiler:
-	@echo "Building with Cygwin GCC..."
+	@echo "Building with GCC..."
 	@$(MAKE) release
 	@echo "Building with Clang..."
 	@$(MAKE) release-clang  
@@ -356,7 +356,7 @@ ifeq($(COMPILER), GCC)
   DIAGNOSTIC_FLAGS = -fdiagnostics-color
   COMPILER_STATIC_ANALYZER = -fanalyzer
 
-# TODO: RETURN TO HERE
+# TODO: RETURN TO HERE (CONTINUE FROM HERE) STOP
 
 else ifeq($(COMPILER), CLANG)
 

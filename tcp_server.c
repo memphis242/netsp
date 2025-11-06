@@ -84,6 +84,7 @@ int main( int argc, char * argv[] )
    // Loop through linked-list until you find a valid addrinfo object
 
    // Free the address info object
+   freeaddrinfo(server_addr_info);
 
    // Open a socket to listen to connections on
 

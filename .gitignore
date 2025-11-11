@@ -23,3 +23,7 @@ build/
 
 # Vim
 *.swp
+*.swo
+
+# ctags
+tags

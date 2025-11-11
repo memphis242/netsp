@@ -26,11 +26,9 @@
 #include <signal.h> // POSIX + C subset : signal handling
 
 /***************************** Local Declarations *****************************/
-// Macros
-#define PORT_NUMSTR "5555"
-
-// Macros that I prefer to be typed constants!
-static const int POSIX_API_NO_ERROR = 0;
+// constexpr's - The better macros!
+constexpr char PORT_NUMSTR[] = "5555";
+constexpr int POSIX_API_NO_ERROR = 0;
 
 // Local Types
 enum MainReturnValues
@@ -59,22 +57,21 @@ int main( int argc, char * argv[] )
    int posix_api_err;
 
    // Create a socket on which to listen in on for connections to this server's
-   // port. Accepted connections are fed into separate processes with separate
-   // sockets, of course.
-   int sockfd_connections; // FIXME: Can we use a more expressive type than int?
-   struct addrinfo   server_addr_cfg_hints = {0}; // Holds up-front address cfg pre-getaddrinfo
-   struct addrinfo * server_addr_info;
+   // port.
+   int sockfd_connections; // FIXME: Can we use a more expressive type than int? :(
+   struct addrinfo   server_addr_cfg_hints = {0}; // Holds apriori address cfg for getaddrinfo
+   struct addrinfo * server_addr_info = nullptr;
 
    server_addr_cfg_hints.ai_family   =  AF_INET; // IPv4
-   server_addr_cfg_hints.ai_socktype =  SOCK_STREAM;
+   server_addr_cfg_hints.ai_socktype =  SOCK_STREAM; // For TCP. For UDP, this would be SOCK_DGRAM.
    server_addr_cfg_hints.ai_flags    |= AI_PASSIVE /* Use local host IP */;
 
    posix_api_err = getaddrinfo(
-                        NULL, /* FIXME: What is this? */
-                        PORT_NUMSTR,
+                        nullptr, // node: IP address as a string
+                        PORT_NUMSTR, // service: port number as a string, or even a service name
                         &server_addr_cfg_hints,
-                        &server_addr_info /* Fnc's returned parameter */
-                  );
+                        &server_addr_info /* Fnc's returned parameter which has ai_addr member for socket API */
+                     );
    if ( posix_api_err != POSIX_API_NO_ERROR )
    {
       fprintf( stderr, "getaddressinfo: %s\n", gai_strerror( posix_api_err) );
@@ -119,5 +116,5 @@ static void sig_child_handler(int s)
 static void * get_ip_addr( const struct sockaddr * sa )
 {
    assert(false);
-   return NULL;
+   return nullptr;
 }

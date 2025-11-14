@@ -10,7 +10,9 @@ build/
 *.so
 
 # Certain source files I don't want committed
-
+inet_pton-demo
+tcp_server
+coredump-demo
 
 # VSCode
 .vscode/

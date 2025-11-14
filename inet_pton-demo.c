@@ -47,7 +47,7 @@ int main(void)
 
       // Replace newline /w NULL termination
       size_t newline_pos = strcspn(buf, "\n");
-      if ( newline_pos < INET_ADDRSTRLEN )
+      if ( newline_pos <= INET_ADDRSTRLEN )
       {
          buf[ newline_pos ] = '\0';
       }

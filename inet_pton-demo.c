@@ -8,8 +8,7 @@ static volatile sig_atomic_t bUserEndsSession = false;
 
 void handleSIGINT(int sig_num)
 {
-   (void)sig_num; // Not yet sure what this is for if we already associate
-                  // a signal number /w this signal handler in signal()...
+   (void)sig_num; // No use of this here when this handler is only for SIGINT
    bUserEndsSession = true;
 }
 

@@ -30,12 +30,9 @@
 constexpr char PORT_NUMSTR[] = "5555";
 constexpr int POSIX_API_NO_ERROR = 0;
 
-// Local Types
-enum MainReturnValues
-{
-   PROGRAM_RAN_FINE,
-   ADDRESS_INFO_ERR,
-};
+// main() return values
+constexpr int PROGRAM_RAN_FINE = 0;
+constexpr int ADDRESS_INFO_ERR = 1;
 
 enum LocalFcnError
 {
@@ -44,7 +41,7 @@ enum LocalFcnError
 };
 
 // Local Functions
-static void   sig_child_handler(int s); // FIXME: What is the actual argument type here? - signal handler
+static void   sig_child_handler(int sig_num);
 static void * get_ip_addr( const struct sockaddr * sa ); // FIXME: I don't like this API
 
 // Extern declarations

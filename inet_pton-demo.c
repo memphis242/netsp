@@ -25,12 +25,11 @@ int main(void)
    printf(" Enter an IP address in numbers-and-dots notation"
           " (Ctrl-C or Ctrl-D to stop gracefully):\n");
 
-   const size_t NREPS_MAX = 10;
+   constexpr size_t NREPS_MAX = 10;
    size_t nreps = 0;
    while ( !bUserEndsSession
            && nreps++ < NREPS_MAX )
    {
-      in_addr_t num_ipaddr = INADDR_NONE;
       char buf[INET_ADDRSTRLEN + 2] = {0}; // Extra space to help handle input
                                            // too long case. See further down.
 
@@ -61,6 +60,7 @@ int main(void)
          continue;
       }
       
+      in_addr_t num_ipaddr = INADDR_NONE;
       int retcode = inet_pton(AF_INET, buf, &num_ipaddr);
       if ( retcode != INET_PTON_SUCCESS )
       {

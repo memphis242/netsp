@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <signal.h>
@@ -6,11 +7,8 @@
 constexpr int INET_PTON_SUCCESS = 1;
 static volatile sig_atomic_t bUserEndsSession = false;
 
-void handleSIGINT(int sig_num)
-{
-   (void)sig_num; // No use of this here when this handler is only for SIGINT
-   bUserEndsSession = true;
-}
+void handleSIGINT(int sig_num);
+bool checkNullTermination(char arr[], size_t len);
 
 int main(void)
 {
@@ -59,6 +57,7 @@ int main(void)
 
          continue;
       }
+      assert(checkNullTermination());
       
       in_addr_t num_ipaddr = INADDR_NONE;
       int retcode = inet_pton(AF_INET, buf, &num_ipaddr);
@@ -76,6 +75,9 @@ int main(void)
       }
    }
 
+   assert(nreps <= NREPS_MAX);
+   assert(bUserEndsSession == false || bUserEndsSession == true);
+
    puts("");
    if ( nreps >= NREPS_MAX )
       puts("Maximum loops reached.");
@@ -84,4 +86,18 @@ int main(void)
    puts("See ya again soon! Goodbye for now :).");
 
    return 0;
+}
+
+void handleSIGINT(int sig_num)
+{
+   (void)sig_num; // No use of this here when this handler is only for SIGINT
+   bUserEndsSession = true;
+}
+
+bool checkNullTermination(char arr[], size_t len)
+{
+   for (size_t i=0; i<len; ++i)
+      if (arr[i] == '\0') return true;
+
+   return false;
 }

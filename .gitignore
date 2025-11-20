@@ -13,6 +13,7 @@ build/
 inet_pton-demo
 tcp_server
 coredump-demo
+misc-practice/udp-checksum
 
 # VSCode
 .vscode/

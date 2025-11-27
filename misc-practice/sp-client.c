@@ -94,6 +94,8 @@ int main(void)
    
    // Connect to the Socket Practice (SP) server
    // TODO
+   if ( /* connection failed */ false )
+      return MAIN_RETCODE_UNABLE_TO_CONNECT;
    
    printf("Connected to SP server!");
    puts("");
@@ -196,6 +198,9 @@ int main(void)
    else
       puts("User ended session.");
    puts("See ya again soon! Goodbye for now :).");
+
+   // Close the connection
+   // TODO
 
    return (int)MAIN_RETCODE_GOOD;
 }

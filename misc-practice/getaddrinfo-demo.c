@@ -11,6 +11,11 @@
 #include <errno.h>
 #include <assert.h>
 #include <ctype.h>
+// Table String Lookups Src Inclusion for Unity Build
+#include "ai_flags_lookup.c"
+#include "ai_family_lookup.c"
+#include "ai_protocol_lookup.c"
+#include "ai_socktype_lookup.c"
 
 constexpr int GETADDRINFO_SUCCESS = 0;
 
@@ -195,12 +200,32 @@ void printAddrInfoObject( struct addrinfo * obj, size_t idx )
    assert(obj != nullptr);
 
    printf("Address %zu:\n", idx);
-   printf("\t->ai_flags: 0x%04X\n", obj->ai_flags);
-   printf("\t->ai_family: 0x%04X\n", obj->ai_family);
-   printf("\t->ai_socktype: 0x%04X\n", obj->ai_socktype);
-   printf("\t->ai_protocol: 0x%04X\n", obj->ai_protocol);
-   printf("\t->ai_addrlen: 0x%04X\n", obj->ai_addrlen);
-   printf("\t->ai_addr->sa_family: 0x%04X\n", obj->ai_addr->sa_family);
+
+   printf("\t->ai_flags:\n");
+   if ( AiFlagsStringLookup[(obj->ai_flags) & 0x0001] != nullptr )
+      printf("\t\t%s\n", AiFlagsStringLookup[(obj->ai_flags) & 0x0001]);
+   if ( AiFlagsStringLookup[(obj->ai_flags) & 0x0002] != nullptr )
+      printf("\t\t%s\n", AiFlagsStringLookup[(obj->ai_flags) & 0x0002]);
+   if ( AiFlagsStringLookup[(obj->ai_flags) & 0x0004] != nullptr )
+      printf("\t\t%s\n", AiFlagsStringLookup[(obj->ai_flags) & 0x0004]);
+   if ( AiFlagsStringLookup[(obj->ai_flags) & 0x0008] != nullptr )
+      printf("\t\t%s\n", AiFlagsStringLookup[(obj->ai_flags) & 0x0008]);
+   if ( AiFlagsStringLookup[(obj->ai_flags) & 0x0010] != nullptr )
+      printf("\t\t%s\n", AiFlagsStringLookup[(obj->ai_flags) & 0x0010]);
+   if ( AiFlagsStringLookup[(obj->ai_flags) & 0x0020] != nullptr )
+      printf("\t\t%s\n", AiFlagsStringLookup[(obj->ai_flags) & 0x0020]);
+   if ( AiFlagsStringLookup[(obj->ai_flags) & 0x0040] != nullptr )
+      printf("\t\t%s\n", AiFlagsStringLookup[(obj->ai_flags) & 0x0040]);
+   if ( AiFlagsStringLookup[(obj->ai_flags) & 0x0080] != nullptr )
+      printf("\t\t%s\n", AiFlagsStringLookup[(obj->ai_flags) & 0x0080]);
+   if ( AiFlagsStringLookup[(obj->ai_flags) & 0x0400] != nullptr )
+      printf("\t\t%s\n", AiFlagsStringLookup[(obj->ai_flags) & 0x0400]);
+
+   printf("\t->ai_family: %s\n", AiFamilyStringLookup[obj->ai_family]);
+   printf("\t->ai_socktype: %s\n", AiSocktypeStringLookup[obj->ai_socktype]);
+   printf("\t->ai_protocol: %s\n", AiProtocolStringLookup[obj->ai_protocol]);
+   printf("\t->ai_addrlen: %d\n", obj->ai_addrlen);
+   printf("\t->ai_addr->sa_family: %s\n", AiFamilyStringLookup[obj->ai_addr->sa_family]);
    if ( obj->ai_addr->sa_family == AF_INET )
    {
       printf( "\t((struct sockaddr_in *)(->ai_addr))->sin_port: %d\n",
@@ -239,4 +264,5 @@ void printAddrInfoObject( struct addrinfo * obj, size_t idx )
    {
       // TODO: Not sure what to do with non AF_INETx family types...
    }
+   puts("");
 }

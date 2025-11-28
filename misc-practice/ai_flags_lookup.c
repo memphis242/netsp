@@ -1,0 +1,16 @@
+#include <netdb.h>
+
+char * AiFlagsStringLookup[] =
+{
+   [AI_PASSIVE] = "AI_PASSIVE 0x0001",
+   [AI_CANONNAME] = "AI_CANONNAME 0x0002",
+   [AI_NUMERICHOST] = "AI_NUMERICHOST 0x0004",
+   [AI_V4MAPPED] = "AI_V4MAPPED 0x0008",
+   [AI_ALL] = "AI_ALL 0x0010",
+   [AI_ADDRCONFIG] = "AI_ADDRCONFIG 0x0020",
+#ifdef __USE_GNU
+   [AI_IDN] = "AI_IDN 0x0040",
+   [AI_CANONIDN] = "AI_CANONIDN 0x0080",
+#endif
+   [AI_NUMERICSERV] = "AI_NUMERICSERV 0x0400",
+};

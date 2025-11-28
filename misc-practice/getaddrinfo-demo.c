@@ -16,26 +16,13 @@ constexpr int GETADDRINFO_SUCCESS = 0;
 
 static volatile sig_atomic_t UserEndedSession = false;
 
-void handleSIGINT(int sig_num)
-{
-   (void)sig_num; // Only SIGINT is handled here
-   UserEndedSession = true;
-}
-
+void handleSIGINT(int sig_num);
 #ifndef NDEBUG
-bool checkNullTermination(char arr[], size_t len)
-{
-   for ( size_t i=0; i < len; ++i )
-   {
-      if ( arr[i] == '\0' )
-         return true;
-   }
-   return false;
-}
-#endif
-
+bool checkNullTermination(char arr[], size_t len);
+#endif // NDEBUG
 void printAddrInfoObject( struct addrinfo * obj, size_t idx );
 
+/******************************************************************************/
 int main(void)
 {
    struct sigaction sa_cfg;
@@ -183,6 +170,25 @@ int main(void)
 
    return 0;
 }
+/******************************************************************************/
+
+void handleSIGINT(int sig_num)
+{
+   (void)sig_num; // Only SIGINT is handled here
+   UserEndedSession = true;
+}
+
+#ifndef NDEBUG
+bool checkNullTermination(char arr[], size_t len)
+{
+   for ( size_t i=0; i < len; ++i )
+   {
+      if ( arr[i] == '\0' )
+         return true;
+   }
+   return false;
+}
+#endif // NDEBUG
 
 void printAddrInfoObject( struct addrinfo * obj, size_t idx )
 {

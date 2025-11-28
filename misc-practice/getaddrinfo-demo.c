@@ -24,12 +24,15 @@ constexpr int BINDING_FAILURE = -1;
 constexpr int CLOSURE_FAILURE = -1;
 
 static volatile sig_atomic_t UserEndedSession = false;
+static volatile sig_atomic_t NestedSession = false;
+static volatile sig_atomic_t UserEndedNestedSession = false;
 
 void handleSIGINT(int sig_num);
 #ifndef NDEBUG
 bool checkNullTermination(char arr[], size_t len);
 #endif // NDEBUG
 void printAddrInfoObject( struct addrinfo * obj, size_t idx );
+void printSockAddrInObject( struct sockaddr_in * obj );
 
 /******************************************************************************/
 int main(void)
@@ -183,6 +186,9 @@ int main(void)
       }
       else if ( strncmp( buf, "listen", sizeof("listen")-1 ) == 0 )
       {
+         // TODO: Use argument on listen for IP address and service
+
+         // If no arguments provided, use default: 192.168.1.129:8080
          int sfd = socket(AF_INET, SOCK_DGRAM, 0);
          if ( SOCKET_CREATION_FAILURE == sfd )
          {
@@ -209,8 +215,41 @@ int main(void)
             printf("Successfully bound socket to 192.168.1.129:8080!\n");
          }
 
-         printf("TODO: Listen and echo msgs from that address:port"
-               " (e.g., using echo \"msg\" | nc -u <ip_address> <port>)...\n");
+         printf("Listening and I will echo msgs... Try: "
+               "`echo \"msg\" | nc --udp 192.168.1.129 8080`...\n");
+
+         // TODO: accept() /w a timeout...
+         NestedSession = true;
+         size_t nreps_nested = 0;
+         while ( !UserEndedNestedSession
+                 && nreps_nested++ < NREPS_MAX )
+         {
+            // Receive data...
+            char buf[1024];
+            struct sockaddr_in src;
+            socklen_t src_len = sizeof(struct sockaddr_in);
+            ssize_t nbytes = recvfrom( sfd,
+                                       buf,
+                                       sizeof buf,
+                                       0, // flags - defaults are fine here
+                                       (struct sockaddr *)&src,
+                                       &src_len );
+            if ( nbytes != -1 && nbytes < (ssize_t)sizeof(buf) )
+            {
+               puts("Msg from:");
+               printSockAddrInObject(&src);
+               puts("Data:");
+               buf[nbytes] = '\0';
+               printf("\t%s\n", buf);
+            }
+            else
+            {
+               fprintf(stderr, "Failed to receive bytes. Try again.\n");
+               continue;
+            }
+         }
+         NestedSession = false;
+         UserEndedNestedSession = false;
 
          printf("Closing socket...\n");
          retcode = close(sfd);
@@ -243,7 +282,11 @@ int main(void)
 void handleSIGINT(int sig_num)
 {
    (void)sig_num; // Only SIGINT is handled here
-   UserEndedSession = true;
+
+   if ( NestedSession )
+      UserEndedNestedSession = true;
+   else
+      UserEndedSession = true;
 }
 
 #ifndef NDEBUG
@@ -328,4 +371,28 @@ void printAddrInfoObject( struct addrinfo * obj, size_t idx )
       // TODO: Not sure what to do with non AF_INETx family types...
    }
    puts("");
+}
+
+void printSockAddrInObject( struct sockaddr_in * obj )
+{
+   assert(obj != nullptr);
+
+   printf("\tAddress Family: %s\n", AiFamilyStringLookup[obj->sin_family]);
+   if ( obj->sin_family == AF_INET )
+   {
+      printf( "\tPort: %d\n", ntohs( obj->sin_port ) );
+      char ipaddress_str[INET_ADDRSTRLEN];
+      const char * retcode = inet_ntop( AF_INET,
+                                        &obj->sin_addr,
+                                        ipaddress_str,
+                                        sizeof ipaddress_str );
+      if ( retcode != NULL )
+         printf( "\tAddress: %s\n", ipaddress_str );
+      else
+         fprintf( stderr, "Error: inet_ntop() unable to convert...\n");
+   }
+   else
+   {
+      assert(false); // Shouldn't get here...
+   }
 }

@@ -87,12 +87,12 @@ int main(void)
       }
       assert( checkNullTermination(buf, sizeof buf) );
 
-      // Pattern match command
       size_t cmd_len = strlen(buf);
       // Convert input to lower-case
       for ( size_t i=0; i < cmd_len && buf[i] != '\0'; ++i )
          buf[i] = tolower(buf[i]);
-      // Start the comparisons
+
+      // Start the cmd pattern matching
       if ( strncmp( buf, "service", sizeof("service")-1 ) == 0 )
       {
          // Find the argument portion
@@ -106,7 +106,7 @@ int main(void)
          // Argument portion is character that follows the space
          char * service = space_ptr + 1;
 
-         // TODO: Check past first argument!
+         // TODO: Check past first argument of the service cmd!
 
          // Begin the getaddrinfo() action
          printf("----------------------------------------------------------------------\n");
@@ -178,11 +178,11 @@ int main(void)
       }
       else if ( strncmp( buf, "hostname", sizeof("hostname")-1 ) == 0 )
       {
-
+         // TODO: hostname cmd
       }
       else if ( strncmp( buf, "local", sizeof("local")-1 ) == 0 )
       {
-
+         // TODO: local cmd
       }
       else if ( strncmp( buf, "listen", sizeof("listen")-1 ) == 0 )
       {

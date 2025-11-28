@@ -3,6 +3,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <unistd.h>
 // Signal System Headers
 #include <signal.h>
 // General-Purpose Headers
@@ -18,6 +19,9 @@
 #include "ai_socktype_lookup.c"
 
 constexpr int GETADDRINFO_SUCCESS = 0;
+constexpr int SOCKET_CREATION_FAILURE = -1;
+constexpr int BINDING_FAILURE = -1;
+constexpr int CLOSURE_FAILURE = -1;
 
 static volatile sig_atomic_t UserEndedSession = false;
 
@@ -144,6 +148,30 @@ int main(void)
             printAddrInfoObject(it, i);
 
          freeaddrinfo(result);
+
+         printf("----------------------------------------------------------------------\n");
+         printf("Now, let's try AI_PASSIVE, suitable for server listening across all NICs.\n");
+         printf("----------------------------------------------------------------------\n");
+         struct addrinfo hints;
+         memset(&hints, 0x00, sizeof hints);
+         hints.ai_flags = AI_PASSIVE;
+         retcode = getaddrinfo( NULL, // node
+                                service,
+                                &hints,
+                                &result );
+         if ( retcode != GETADDRINFO_SUCCESS )
+         {
+            fprintf( stderr,
+                     "Error: getaddrinfo() returned: %s\n",
+                     gai_strerror(retcode) );
+            continue;
+         }
+
+         i = 1;
+         for ( struct addrinfo * it = result; it != NULL; it = it->ai_next, ++i )
+            printAddrInfoObject(it, i);
+
+         freeaddrinfo(result);
       }
       else if ( strncmp( buf, "hostname", sizeof("hostname")-1 ) == 0 )
       {
@@ -155,7 +183,42 @@ int main(void)
       }
       else if ( strncmp( buf, "listen", sizeof("listen")-1 ) == 0 )
       {
+         int sfd = socket(AF_INET, SOCK_DGRAM, 0);
+         if ( SOCKET_CREATION_FAILURE == sfd )
+         {
+            fprintf( stderr, "Failed to create socket for AF_INET + SOCK_DGRAM.\n" );
+            continue;
+         }
 
+         int retcode = bind( sfd,
+                             (struct sockaddr *)&(struct sockaddr_in) {
+                                 .sin_family = AF_INET,
+                                 .sin_port = htons(8080),
+                                 // wish there was a compile-time inet_pton() that
+                                 // just returned the numerical addr...
+                                 .sin_addr = { .s_addr = htonl(0xC0A80181) }
+                             },
+                             sizeof(struct sockaddr_in) );
+         if ( BINDING_FAILURE == retcode )
+         {
+            fprintf( stderr, "Failed to bind socket to 192.168.1.129:8080.\n" );
+            continue;
+         }
+         else
+         {
+            printf("Successfully bound socket to 192.168.1.129:8080!\n");
+         }
+
+         printf("TODO: Listen and echo msgs from that address:port"
+               " (e.g., using echo \"msg\" | nc -u <ip_address> <port>)...\n");
+
+         printf("Closing socket...\n");
+         retcode = close(sfd);
+         if ( CLOSURE_FAILURE == retcode )
+         {
+            fprintf( stderr, "Failed to close socket %d.\n", sfd );
+            continue;
+         }
       }
       else
       {

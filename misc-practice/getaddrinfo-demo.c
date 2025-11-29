@@ -259,6 +259,11 @@ int main(void)
             continue;
          }
       }
+      else if ( strncmp( buf, "exit", sizeof("listen")-1 ) == 0
+                || strncmp( buf, "quit", sizeof("listen")-1 ) == 0 )
+      {
+         break;
+      }
       else
       {
          fprintf(stderr, "Invalid command: %s. Try again.\n", buf);

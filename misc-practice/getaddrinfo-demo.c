@@ -202,7 +202,8 @@ int main(void)
                                  .sin_port = htons(8080),
                                  // wish there was a compile-time inet_pton() that
                                  // just returned the numerical addr...
-                                 .sin_addr = { .s_addr = htonl(0xC0A80181) }
+                                 //.sin_addr = { .s_addr = htonl(0xC0A80181) }
+                                 .sin_addr = { .s_addr = INADDR_ANY }
                              },
                              sizeof(struct sockaddr_in) );
          if ( BINDING_FAILURE == retcode )

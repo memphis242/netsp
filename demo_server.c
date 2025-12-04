@@ -4,6 +4,7 @@
  */
 
 /*************************** File Header Inclusions ***************************/
+#define _POSIX_C_SOURCE 200809L // Specify atleast POSIX.1-2008 compatibility
 // General-Purpose Headers
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,9 +20,12 @@
 #include <arpa/inet.h>
 // Tangential Headers
 #include <signal.h>
+#include <pthread.h>
+#include <sys/select.h>
+#include <unistd.h>
 
 /***************************** Local Declarations *****************************/
-// constexpr's - The better macros!
+static volatile sig_atomic_t bUserEndedSession = false;
 
 // Some errors shouldn't abort the program, but we will still return a code
 // indicating something went wrong. To account for a possible accumulation
@@ -34,9 +38,33 @@ enum MainRetCode
    MAINRC_SOCKET_LISTEN_ERR       = 0x0004,
    MAINRC_SOCKET_ACCEPT_ERR       = 0x0008,
    MAINRC_SIGINT_REGISTRATION_ERR = 0x0010,
+   MAINRC_NREP_LIM_HIT            = 0x0020,
 };
 
-// Local Functions
+struct Client
+{
+   int sfd; // socket descriptor of server socket communicating /w this client
+   in_addr_t src_ipaddr;
+   uint16_t src_port;
+   struct Client * next; // linked-list of clients makes arbitrary removal
+                         // somewhat easier
+};
+
+struct ClientList
+{
+   struct Client * head;
+   size_t len;
+};
+
+struct StreamContext
+{
+   pthread_t acceptor;
+   pthread_t responder;
+   int sfd; // socket descriptor
+   pthread_mutex_t mtx;
+   struct ClientList clients;
+};
+
 static void handleSIGINT(int sig_num);
 
 /******************************* Main Function ********************************/
@@ -56,9 +84,12 @@ int main( int argc, char * argv[] )
    if ( retcode != 0 )
    {
       fprintf( stderr,
-               "sigaction() failed to register interrupt signal.\n"
-               "Returned: %d, errno: %s (%d)\n",
+               "Warning: sigaction() failed to register interrupt signal.\n"
+               "Returned: %d, errno: %s (%d)\n"
+               "You won't be able to stop the program gracefully /w Ctrl+C, \n"
+               " though Ctrl+C will still terminate the program.",
                retcode, strerror(errno), errno );
+
       main_retcode |= MAINRC_SIGINT_REGISTRATION_ERR;
    }
 
@@ -78,48 +109,56 @@ int main( int argc, char * argv[] )
            "\t- tcp-close-all\n"
            "\t- close-all\n" );
 
-   // Create a listening socket for accept()'ing on connections on any interface (ix)
-   // TODO: May want to add functionality to support listening on a singular ix...
-   int sfd_listening = socket( AF_INET,
-                               SOCK_STREAM,
-                               0 /* protocol within AF */ );
-   if ( sfd_listening < 0 )
+   printf("> ");
+   constexpr size_t NMAX = 1'000;
+   size_t nreps = 0;
+   while ( !bUserEndedSession && nreps++ < NMAX )
    {
-      
+      char buf[100] = {0};
+
+      // TODO: The -create cmds shall spawn listener + responder threads and an
+      //       associated context (e.g., mutex for updating/reading client lists)
+
+      if ( strncmp( buf, "tcp-create", strlen("udp-create") ) == 0 )
+      {
+         int sfd_listening = socket( AF_INET,
+                                     SOCK_STREAM,
+                                     0 /* protocol within AF */ );
+         if ( sfd_listening < 0 )
+         {
+            // TODO: Error creating listening TCP socket...
+         }
+
+         struct StreamContext * ctx = calloc( 1, sizeof(struct StreamContext) );
+         // Create thread objects and point the thread fcns to their respective
+         // local fcns, each of which take this stream context ptr as an arg.
+         // TODO:
+      }
    }
 
-   // Open a socket to listen to connections on
+   if ( nreps >= NMAX )
+   {
+      printf( "REPL repetitions hit limit: %zu / %zu\n"
+              "Session ended. Please restart program.\n",
+              nreps, NMAX );
 
-   // Bind a local port to that socket
+      main_retcode |= MAINRC_NREP_LIM_HIT;
+   }
+   else
+   {
+      printf("User has ended the session. Goodbye!\n");
+   }
 
-   // Declare that we'll listen to X amount of connections in the connection queue at most
-
-   // Accept connections and fork off child processes to handle them
-
-   // Close the connection socket
-
-   return (int)PROGRAM_RAN_FINE;
+   return main_retcode;
 }
 
 /*********************** Local Function Implementations ***********************/
 
 /**
- * @brief FIXME: Handle what exact OS signal interrupt?
+ * @brief Handle the interrupt signal that a user would trigger /w Ctrl+C
  */
-static void sig_child_handler(int s)
+static void handleSIGINT(int sig_num)
 {
-   (void)s; // Silence unused var warning
-
-   // waitpid() might override errno, so save it first prior to the call and restore afterwards.
-   int saved_errno = errno;   // FIXME: Does errno have to be an int...
-   while ( waitpid(-1, /* FIXME: What is this? */
-                   NULL, /* FIXME: What is this? */
-                   WNOHANG /* FIXME: What is this? */ ) > 0 );
-   errno = saved_errno;
-}
-
-static void * get_ip_addr( const struct sockaddr * sa )
-{
-   assert(false);
-   return nullptr;
+   (void)sig_num; // Signal number is not necessary here
+   bUserEndedSession = true;
 }

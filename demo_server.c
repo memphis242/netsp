@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
@@ -30,11 +31,15 @@
 #include <unistd.h>
 
 /***************************** Local Declarations *****************************/
+constexpr size_t MAX_CLIENTS = 1'000;
+constexpr int STREAM_LISTEN_QUEUE_SZ = 5;
+
 static volatile sig_atomic_t bUserEndedSession = false;
 
 // Some errors shouldn't abort the program, but we will still return a code
 // indicating something went wrong. To account for a possible accumulation
 // of errors, need to reserve specific bits for each.
+// TODO: Check that program is actually using these return codes...
 enum MainRetCode
 {
    MAINRC_FINE                    = 0x0000,
@@ -51,14 +56,15 @@ struct Client
 {
    int sfd; // socket descriptor of server socket communicating /w this client
    in_addr_t src_ipaddr;
-   uint16_t src_port;
-   struct Client * next; // linked-list of clients makes arbitrary removal
-                         // somewhat easier
+   in_port_t src_port;
+   // linked-list of clients makes arbitrary insertion/removal somewhat easier
+   struct Client * next;
 };
 
 struct ClientList
 {
    struct Client * head;
+   struct Client * tail;
    size_t len;
 };
 
@@ -66,8 +72,10 @@ struct StreamContext
 {
    pthread_t acceptor;
    pthread_t responder;
-   int sfd; // socket descriptor
    pthread_mutex_t mtx;
+   int sfd; // socket descriptor
+   struct in_addr interface_addr;
+   in_port_t port;
    struct ClientList clients;
 };
 
@@ -75,6 +83,12 @@ static void handleSIGINT(int sig_num);
 
 static void * acceptorThread(void * arg);
 static void * responderThread(void * arg);
+
+static bool addClient( struct StreamContext * ctx,
+                       const struct Client * client_info );
+static bool rmvClient( struct StreamContext * ctx,
+                       in_addr_t ip,
+                       in_port_t port );
 
 #ifndef NDEBUG
 bool isFullyNumeric(char * str, size_t len);
@@ -107,7 +121,7 @@ int main( int argc, char * argv[] )
       main_retcode |= MAINRC_SIGINT_REGISTRATION_ERR;
    }
 
-   printf( "Hello! This is the REPL for a demo server.\n"
+   printf( "Hello! This is the REPL for a demo IPv4-only server.\n"
            "Here is a brief list of the available commands (case-insensitive):\n"
            "\t- udp-create [ip_address : port]\n"
            "\t- udp-listen [timeout in seconds]\n"
@@ -260,33 +274,194 @@ int main( int argc, char * argv[] )
          assert( isNullTerminated(cmd_arg_addr, sizeof cmd_arg_addr) );
          assert( isNullTerminated(cmd_arg_port, sizeof cmd_arg_port) );
 
-         // Convert string arguments to what are needed for bind()'ing
          // FIXME: Remove this printf "found" section after you're done developing
          printf("\tFound arguments:\n"
                 "\t\tIP Address: %s\n"
                 "\t\tPort: %s\n",
                 cmd_arg_addr,
                 cmd_arg_port );
-         // TODO: You stopped here
 
          // Attempt to create socket
-         int sfd_listening = socket( AF_INET,
-                                     SOCK_STREAM,
-                                     0 /* protocol within AF */ );
+         int sfd_listening = socket(AF_INET, SOCK_STREAM, 0);
          if ( sfd_listening < 0 )
          {
-            // TODO: Error creating listening TCP socket...
+            fprintf( stderr,
+                     "Error: Failed to create listening socket.\n"
+                     "socket() returned: %d, errno: %s (%d)\n",
+                     sfd_listening, strerror(errno), errno );
+            continue;
+         }
+
+         // Since this is a TCP socket, let's prevent a lingering socket address
+         // already used error.
+         retcode = setsockopt( sfd_listening,
+                               SOL_SOCKET,
+                               SO_REUSEADDR,
+                               &(int){1},
+                               sizeof(int) );
+         assert(retcode == 0); // if setsockopt() failed, we set something up wrong
+
+         // Convert string arguments to what are needed for bind()'ing
+         // First the IP address
+         struct in_addr numerical_addr;
+         retcode = inet_pton(AF_INET, cmd_arg_addr, &numerical_addr);
+         assert(retcode != -1); // -1 is invalid address family
+         if ( 0 == retcode )
+         {
+            fprintf( stderr,
+                     "Error: Invalid IPv4 address: %s\n"
+                     "Please try again.\n",
+                     cmd_arg_addr );
+            continue;
+         }
+
+         // Now the port
+         char * strtol_end_ptr = cmd_arg_port;
+         in_port_t port = strtol(cmd_arg_port, &strtol_end_ptr, 10);
+         // If I did my job right above /w the argument parsing, the following
+         // assertions should be true.
+         assert(*strtol_end_ptr == '\0'); // Full port string was a number
+         port = htons(port); // Convert to network byte order for socket API
+
+         // Now bind to the interface we just defined
+         retcode = bind( sfd_listening,
+                         (struct sockaddr *)
+                         &(struct sockaddr_in) {
+                            .sin_family = AF_INET,
+                            .sin_port = port,
+                            .sin_addr = numerical_addr
+                         },
+                         sizeof(struct sockaddr_in) );
+         if ( retcode != 0 )
+         {
+            char addrbuf[INET_ADDRSTRLEN];
+            const char * rc = inet_ntop(AF_INET, &numerical_addr, addrbuf, sizeof numerical_addr);
+            assert(rc != nullptr);
+            fprintf( stderr,
+                     "Error: Failed to bind socket to specified interface:\n"
+                     "\tIP Address: %s\n"
+                     "\tPort: %d\n"
+                     "bind() returned: %d, errno: %s (%d)\n"
+                     "Socket will be closed. Please try again.\n",
+                     addrbuf, port, retcode, strerror(errno), errno );
+
+            size_t close_nreps = 0;
+            while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
+            if ( close_nreps >= 10 )
+            {
+               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               // TODO: Figure out a way to gracefully handle this error case...
+               abort();
+            }
+
+            continue;
+         }
+
+         retcode = listen(sfd_listening, STREAM_LISTEN_QUEUE_SZ);
+         if ( retcode != 0 )
+         {
+            fprintf( stderr,
+                     "Error: Failed to start listening on interface.\n"
+                     "listen() returned: %d, errno: %s (%d)\n"
+                     "Socket will be closed. Please try again.\n",
+                     retcode, strerror(errno), errno );
+
+            size_t close_nreps = 0;
+            while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
+            if ( close_nreps >= 10 )
+            {
+               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               // TODO: Figure out a way to gracefully handle this error case...
+               abort();
+            }
+
+            continue;
          }
 
          struct StreamContext * ctx = calloc( 1, sizeof(struct StreamContext) );
+         if ( nullptr == ctx )
+         {
+            fprintf( stderr,
+                     "Error: Failed to allocate context.\n"
+                     "errno: %s (%d)\n"
+                     "Socket will be closed. Please try again.\n",
+                     strerror(errno), errno );
+
+            size_t close_nreps = 0;
+            while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
+            if ( close_nreps >= 10 )
+            {
+               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               // TODO: Figure out a way to gracefully handle this error case...
+               abort();
+            }
+
+            continue;
+         }
+
+         ctx->sfd = sfd_listening;
+         ctx->interface_addr = numerical_addr;
+         ctx->port = port;
+
          // Create thread objects and point the thread fcns to their respective
          // local fcns, each of which take this stream context ptr as an arg.
-         // TODO:
+         pthread_mutex_init(&ctx->mtx, nullptr); // default mutex attributes
+         retcode = pthread_create( &ctx->acceptor,
+                                   nullptr, // default thread attributes
+                                   acceptorThread,
+                                   ctx );
+         if ( retcode != 0 )
+         {
+            fprintf( stderr,
+                     "Error: Failed to create acceptor thread for this context.\n"
+                     "pthread_create() returned: %d : %s\n"
+                     "Socket will be closed and context freed. Please try again.\n",
+                     retcode, strerror(retcode) );
 
-         // TODO: Move this closing of the socket descriptor to its appropriate
-         //       spot once we've got the destroy/cleanup code written up. This
-         //       is  here for now so that -fanalyzer stops complaining about
-         //       a leaking file.
+            free(ctx);
+
+            size_t close_nreps = 0;
+            while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
+            if ( close_nreps >= 10 )
+            {
+               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               // TODO: Figure out a way to gracefully handle this error case...
+               abort();
+            }
+
+            continue;
+         }
+
+         retcode = pthread_create( &ctx->responder,
+                                   nullptr, // default thread attributes
+                                   responderThread,
+                                   ctx );
+         if ( retcode != 0 )
+         {
+            fprintf( stderr,
+                     "Error: Failed to create responder thread for this context.\n"
+                     "pthread_create() returned: %d : %s\n"
+                     "Socket will be closed and context freed. Please try again.\n",
+                     retcode, strerror(retcode) );
+
+            free(ctx);
+
+            size_t close_nreps = 0;
+            while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
+            if ( close_nreps >= 10 )
+            {
+               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               // TODO: Figure out a way to gracefully handle this error case...
+               abort();
+            }
+
+            continue;
+         }
+         
+         // FIXME: Move this closing of the socket descriptor to its appropriate
+         //        spot once we've got the destroy/cleanup code written up. This
+         //        is  here for now so that -fanalyzer stops complaining about
+         //        a leaking file.
          retcode = close(sfd_listening);
          if ( retcode != 0 )
          {
@@ -341,14 +516,137 @@ static void handleSIGINT(int sig_num)
 static void * acceptorThread(void * arg)
 {
    // TODO
+   struct StreamContext * ctx = arg;
+   static size_t nreps = 0;
+
+   printf("In acceptor thread. Iteration: %zu", nreps);
+
    return nullptr;
 }
 
 static void * responderThread(void * arg)
 {
    // TODO
+   struct StreamContext * ctx = arg;
+   static size_t nreps = 0;
+
+   printf("In responder thread. Iteration: %zu", nreps);
+
    return nullptr;
 }
+
+static bool addClient( struct StreamContext * ctx,
+                       const struct Client * client_info )
+{
+   assert(ctx != nullptr);
+   assert(client_info != nullptr);
+   assert( ctx->clients.head != nullptr
+           || (ctx->clients.head == nullptr && ctx->clients.len == 0) );
+   assert(client_info->sfd >= 0);
+   assert(client_info->next == nullptr);
+
+   // It is assumed that the client object is temporary and we need to
+   // dynamically allocate a client object here to then place in the client list
+   struct Client * new_client = malloc( sizeof(struct Client) );
+   if ( nullptr == new_client )
+   {
+      // TODO: Log error in library log that user can choose to read/print from?
+      return false;
+   }
+   *new_client = *client_info;
+
+   // Add to list
+   if ( 0 == ctx->clients.len )
+   {
+      ctx->clients.head = new_client;
+      ctx->clients.tail = new_client;
+   }
+   else
+   {
+      ctx->clients.tail->next = new_client;
+      ctx->clients.tail = ctx->clients.tail->next;
+   }
+
+   ctx->clients.len++;
+
+   assert(new_client->next == nullptr);
+   assert(ctx->clients.head != nullptr);
+   assert(ctx->clients.tail != nullptr);
+   assert(ctx->clients.tail->next == nullptr);
+   assert(ctx->clients.len > 0);
+
+   return true;
+}
+
+static bool rmvClient( struct StreamContext * ctx,
+                       in_addr_t ip,
+                       in_port_t port )
+{
+   assert(ctx != nullptr);
+   assert(ctx->clients.head != nullptr); // list should not be empty
+   assert(ctx->clients.len > 0);
+   assert(ip != 0);
+   assert(port != 0);
+
+   // Find client in list based on IP and port
+   struct Client * old_client = nullptr;
+   struct Client * prv_node = ctx->clients.head;
+   size_t iter = 1;
+
+   for ( struct Client * curr = ctx->clients.head;
+         curr != nullptr && iter <= ctx->clients.len;
+         curr = curr->next, ++iter )
+   {
+      if ( iter > 2 )
+         prv_node = prv_node->next;
+
+      struct sockaddr_in sock_info;
+      socklen_t sock_info_len = sizeof(struct sockaddr_in);
+      int retcode = getsockname( curr->sfd, (struct sockaddr *)&sock_info, &sock_info_len );
+      // If getsockname() fails, we did something wrong in constructing the client...
+      assert(retcode == 0);
+      assert( sock_info_len <= sizeof(struct sockaddr_in) );
+      
+      if ( ip == sock_info.sin_addr.s_addr
+           && port == sock_info.sin_port )
+      {
+         old_client = curr;
+         break;
+      }
+   }
+
+   // If we failed to find a match in the list...
+   if ( nullptr == old_client )
+      return false;
+
+   // Close socket line /w client
+   int retcode = close(old_client->sfd);
+   if ( retcode != 0 )
+   {
+      // TODO: Log error in library log that user can choose to read/print from?
+      return false;
+   }
+
+   // Remove from list
+   if ( 1 == ctx->clients.len )
+   {
+      ctx->clients.head = nullptr;
+      ctx->clients.tail = nullptr;
+   }
+   else
+   {
+      prv_node->next = old_client->next;
+   }
+
+   ctx->clients.len--;
+
+   // Free client object
+   free(old_client);
+
+   return true;
+}
+
+static void rmvAllClients( struct StreamContext * ctx ); // TODO
 
 #ifndef NDEBUG
 bool isFullyNumeric(char * str, size_t len)

@@ -29,10 +29,13 @@
 #include <pthread.h>
 #include <sys/select.h>
 #include <unistd.h>
+#include <time.h>
 
 /***************************** Local Declarations *****************************/
 constexpr size_t MAX_CLIENTS = 1'000;
 constexpr int STREAM_LISTEN_QUEUE_SZ = 5;
+// Honestly, 1 second is too long, but let's optimize later
+constexpr time_t MAX_MTX_LOCK_WAIT_SEC = 1;
 
 static volatile sig_atomic_t bUserEndedSession = false;
 
@@ -55,8 +58,8 @@ enum MainRetCode
 struct Client
 {
    int sfd; // socket descriptor of server socket communicating /w this client
-   in_addr_t src_ipaddr;
-   in_port_t src_port;
+   in_addr_t addr;
+   in_port_t port;
    // linked-list of clients makes arbitrary insertion/removal somewhat easier
    struct Client * next;
 };
@@ -73,9 +76,9 @@ struct StreamContext
    pthread_t acceptor;
    pthread_t responder;
    pthread_mutex_t mtx;
-   int sfd; // socket descriptor
-   struct in_addr interface_addr;
-   in_port_t port;
+   int listening_sfd; // socket descriptor
+   struct in_addr listening_addr;
+   in_port_t listening_port;
    struct ClientList clients;
 };
 
@@ -349,7 +352,10 @@ int main( int argc, char * argv[] )
             while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
             if ( close_nreps >= 10 )
             {
-               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               fprintf( stderr,
+                        "%s:%d : Error: Unable to close socket %d!\n"
+                        "Aborting program.\n",
+                        __FILE__, __LINE__, sfd_listening );
                // TODO: Figure out a way to gracefully handle this error case...
                abort();
             }
@@ -370,7 +376,10 @@ int main( int argc, char * argv[] )
             while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
             if ( close_nreps >= 10 )
             {
-               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               fprintf( stderr,
+                        "%s:%d : Error: Unable to close socket %d!\n"
+                        "Aborting program.\n",
+                        __FILE__, __LINE__, sfd_listening );
                // TODO: Figure out a way to gracefully handle this error case...
                abort();
             }
@@ -391,7 +400,10 @@ int main( int argc, char * argv[] )
             while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
             if ( close_nreps >= 10 )
             {
-               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               fprintf( stderr,
+                        "%s:%d : Error: Unable to close socket %d!\n"
+                        "Aborting program.\n",
+                        __FILE__, __LINE__, sfd_listening );
                // TODO: Figure out a way to gracefully handle this error case...
                abort();
             }
@@ -399,9 +411,9 @@ int main( int argc, char * argv[] )
             continue;
          }
 
-         ctx->sfd = sfd_listening;
-         ctx->interface_addr = numerical_addr;
-         ctx->port = port;
+         ctx->listening_sfd = sfd_listening;
+         ctx->listening_addr = numerical_addr;
+         ctx->listening_port = port;
 
          // Create thread objects and point the thread fcns to their respective
          // local fcns, each of which take this stream context ptr as an arg.
@@ -424,7 +436,10 @@ int main( int argc, char * argv[] )
             while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
             if ( close_nreps >= 10 )
             {
-               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               fprintf( stderr,
+                        "%s:%d : Error: Unable to close socket %d!\n"
+                        "Aborting program.\n",
+                        __FILE__, __LINE__, sfd_listening );
                // TODO: Figure out a way to gracefully handle this error case...
                abort();
             }
@@ -450,7 +465,10 @@ int main( int argc, char * argv[] )
             while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
             if ( close_nreps >= 10 )
             {
-               fprintf( stderr, "Error: Unable to close socket! Aborting program.\n");
+               fprintf( stderr,
+                        "%s:%d : Error: Unable to close socket %d!\n"
+                        "Aborting program.\n",
+                        __FILE__, __LINE__, sfd_listening );
                // TODO: Figure out a way to gracefully handle this error case...
                abort();
             }
@@ -482,6 +500,8 @@ int main( int argc, char * argv[] )
          continue;
       }
    }
+
+   // FIXME: pthread_join() on any open threads!
 
    puts("");
    puts("");
@@ -515,11 +535,61 @@ static void handleSIGINT(int sig_num)
 
 static void * acceptorThread(void * arg)
 {
-   // TODO
    struct StreamContext * ctx = arg;
    static size_t nreps = 0;
 
+#ifndef NDEBUG
    printf("In acceptor thread. Iteration: %zu", nreps);
+#endif
+
+   struct sockaddr_in client_info;
+   socklen_t client_info_len = sizeof client_info;
+   int new_conn_sfd = accept( ctx->listening_sfd,
+                              (struct sockaddr *)&client_info,
+                              &client_info_len );
+   if ( new_conn_sfd < 0 )
+   {
+      // TODO: Handle accept() error
+      fprintf( stderr,
+               "Error: accept() returned: %d, errno: %s (%d)\n",
+               new_conn_sfd, strerror(errno), errno );
+      return nullptr;
+   }
+   else if ( client_info_len > sizeof client_info )
+   {
+      // TODO: Handle address getting truncated in accept()
+      fprintf( stderr,
+               "Error: Client address information got truncated.\n" );
+      return nullptr;
+   }
+
+   struct Client new_client;
+   new_client.sfd  = new_conn_sfd;
+   new_client.addr = client_info.sin_addr.s_addr;
+   new_client.port = client_info.sin_port;
+   new_client.next = nullptr;
+
+   bool addedSuccessfully = addClient(ctx, &new_client);
+   if ( !addedSuccessfully )
+   {
+      // TODO: Log lib error and handle this awkward failed client addition
+   }
+
+#ifndef NDEBUG
+   char addrstr[INET_ADDRSTRLEN];
+   const char * retcode = inet_ntop( AF_INET,
+                                     &(struct in_addr){ .s_addr = new_client.addr },
+                                     addrstr,
+                                     sizeof addrstr );
+   assert(retcode != nullptr); // inet_ntop better succeed, since this info
+                               // came from accept()
+
+   printf( "New client added! %d\n"
+           "\tSrc IP Address: %s\n"
+           "\tSrc Port: %d\n"
+           "Talking to us on port: %d\n",
+           new_client.sfd, addrstr, ntohs(new_client.port), ctx->listening_port );
+#endif
 
    return nullptr;
 }
@@ -530,7 +600,9 @@ static void * responderThread(void * arg)
    struct StreamContext * ctx = arg;
    static size_t nreps = 0;
 
+#ifndef NDEBUG
    printf("In responder thread. Iteration: %zu", nreps);
+#endif
 
    return nullptr;
 }
@@ -555,7 +627,21 @@ static bool addClient( struct StreamContext * ctx,
    }
    *new_client = *client_info;
 
-   // Add to list
+   // Add to shared list
+   struct timespec lock_timeout;
+   int retcode = clock_gettime(CLOCK_REALTIME, &lock_timeout);
+   if ( retcode != 0 )
+   {
+      // TODO: Log error in library log that user can choose to read/print from?
+      return false;
+   }
+   lock_timeout.tv_sec += MAX_MTX_LOCK_WAIT_SEC;
+   retcode = pthread_mutex_timedlock(&ctx->mtx, &lock_timeout);
+   // Pretty much any reason the timed mutex lock fails is cause for redesign
+   // (e.g., different timeout, excessively long critical section elsewhere,
+   // etc.), so call assert() to indicate this failure and abort.
+   assert(retcode == 0); // FIXME: It'd be good to print out _who_ owned the lock at failure...
+
    if ( 0 == ctx->clients.len )
    {
       ctx->clients.head = new_client;
@@ -566,8 +652,11 @@ static bool addClient( struct StreamContext * ctx,
       ctx->clients.tail->next = new_client;
       ctx->clients.tail = ctx->clients.tail->next;
    }
-
    ctx->clients.len++;
+
+   retcode = pthread_mutex_unlock(&ctx->mtx);
+   // Similarly, any error in unlocking signals a redesign to me. Assert!
+   assert(retcode == 0);
 
    assert(new_client->next == nullptr);
    assert(ctx->clients.head != nullptr);
@@ -589,6 +678,21 @@ static bool rmvClient( struct StreamContext * ctx,
    assert(port != 0);
 
    // Find client in list based on IP and port
+   // First, lock list
+   struct timespec lock_timeout;
+   int retcode = clock_gettime(CLOCK_REALTIME, &lock_timeout);
+   if ( retcode != 0 )
+   {
+      // TODO: lib log...
+      return false;
+   }
+   lock_timeout.tv_sec += MAX_MTX_LOCK_WAIT_SEC;
+   retcode = pthread_mutex_timedlock(&ctx->mtx, &lock_timeout);
+   // Pretty much any reason the timed mutex lock fails is cause for redesign
+   // (e.g., different timeout, excessively long critical section elsewhere,
+   // etc.), so call assert() to indicate this failure and abort.
+   assert(retcode == 0); // FIXME: It'd be good to print out _who_ owned the lock at failure...
+
    struct Client * old_client = nullptr;
    struct Client * prv_node = ctx->clients.head;
    size_t iter = 1;
@@ -600,15 +704,7 @@ static bool rmvClient( struct StreamContext * ctx,
       if ( iter > 2 )
          prv_node = prv_node->next;
 
-      struct sockaddr_in sock_info;
-      socklen_t sock_info_len = sizeof(struct sockaddr_in);
-      int retcode = getsockname( curr->sfd, (struct sockaddr *)&sock_info, &sock_info_len );
-      // If getsockname() fails, we did something wrong in constructing the client...
-      assert(retcode == 0);
-      assert( sock_info_len <= sizeof(struct sockaddr_in) );
-      
-      if ( ip == sock_info.sin_addr.s_addr
-           && port == sock_info.sin_port )
+      if ( ip == curr->addr && port == curr->port )
       {
          old_client = curr;
          break;
@@ -617,13 +713,9 @@ static bool rmvClient( struct StreamContext * ctx,
 
    // If we failed to find a match in the list...
    if ( nullptr == old_client )
-      return false;
-
-   // Close socket line /w client
-   int retcode = close(old_client->sfd);
-   if ( retcode != 0 )
    {
-      // TODO: Log error in library log that user can choose to read/print from?
+      retcode = pthread_mutex_unlock(&ctx->mtx);
+      assert(retcode == 0); // If unlock fails, I screwed up
       return false;
    }
 
@@ -637,8 +729,23 @@ static bool rmvClient( struct StreamContext * ctx,
    {
       prv_node->next = old_client->next;
    }
-
    ctx->clients.len--;
+
+   retcode = pthread_mutex_unlock(&ctx->mtx);
+   assert(retcode == 0); // If unlock fails, I screwed up
+
+   // Close socket line /w client
+   size_t close_nreps = 0;
+   while ( (retcode = close(old_client->sfd)) != 0 && close_nreps++ < 10 );
+   if ( close_nreps >= 10 )
+   {
+      fprintf( stderr,
+               "%s:%d : Error: Unable to close socket %d!\n"
+               "Aborting program.\n",
+               __FILE__, __LINE__, old_client->sfd );
+      // TODO: Figure out a way to gracefully handle this error case...
+      abort();
+   }
 
    // Free client object
    free(old_client);
@@ -646,7 +753,7 @@ static bool rmvClient( struct StreamContext * ctx,
    return true;
 }
 
-static void rmvAllClients( struct StreamContext * ctx ); // TODO
+static bool rmvAllClients( struct StreamContext * ctx ); // TODO
 
 #ifndef NDEBUG
 bool isFullyNumeric(char * str, size_t len)

@@ -27,17 +27,23 @@
 // Tangential Headers
 #include <signal.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <sys/select.h>
 #include <unistd.h>
 #include <time.h>
 
 /***************************** Local Declarations *****************************/
 constexpr size_t MAX_CLIENTS = 1'000;
+constexpr size_t MAX_SERVERS = 1'000;
+constexpr size_t MAX_THREAD_REPS = 1'000'000;
 constexpr int STREAM_LISTEN_QUEUE_SZ = 5;
 // Honestly, 1 second is too long, but let's optimize later
 constexpr time_t MAX_MTX_LOCK_WAIT_SEC = 1;
+constexpr time_t MAX_MTX_PRINTF_LOCK_WAIT_SEC = 3;
 
 static volatile sig_atomic_t bUserEndedSession = false;
+
+static pthread_mutex_t mtxPrintf = PTHREAD_MUTEX_INITIALIZER;
 
 // Some errors shouldn't abort the program, but we will still return a code
 // indicating something went wrong. To account for a possible accumulation
@@ -73,6 +79,7 @@ struct ClientList
 
 struct StreamContext
 {
+   atomic_bool enabled;
    pthread_t acceptor;
    pthread_t responder;
    pthread_mutex_t mtx;
@@ -475,21 +482,10 @@ int main( int argc, char * argv[] )
 
             continue;
          }
-         
-         // FIXME: Move this closing of the socket descriptor to its appropriate
-         //        spot once we've got the destroy/cleanup code written up. This
-         //        is  here for now so that -fanalyzer stops complaining about
-         //        a leaking file.
-         retcode = close(sfd_listening);
-         if ( retcode != 0 )
-         {
-            fprintf( stderr,
-                     "Error: Failed to close socket!\n"
-                     "close() returned: %d, errno: %s (%d)\n",
-                     retcode, strerror(errno), errno );
 
-            main_retcode |= MAINRC_FAILED_CLOSE;
-         }
+         ctx->enabled = true; // strictest memory ordering seq_cst is fine here
+
+         printf("Successfully created listening context.\n");
       }
       else
       {
@@ -538,58 +534,89 @@ static void * acceptorThread(void * arg)
    struct StreamContext * ctx = arg;
    static size_t nreps = 0;
 
+   while ( ctx->enabled && nreps < MAX_THREAD_REPS )
+   {
 #ifndef NDEBUG
-   printf("In acceptor thread. Iteration: %zu", nreps);
+      if ( nreps % 10 == 0 )
+      {
+         // I'm only concerned to mutex-lock around the printf here because
+         // it precedes a blocking call - accept(). The only other time I'd care
+         // to mutex-lock around a printf is if I care about a specific sequence
+         // of printf's going through.
+         struct timespec lock_timeout;
+         int retcode = clock_gettime(CLOCK_REALTIME, &lock_timeout);
+         if ( retcode == 0 )
+         {
+            lock_timeout.tv_sec += MAX_MTX_PRINTF_LOCK_WAIT_SEC;
+
+            retcode = pthread_mutex_timedlock(&mtxPrintf, &lock_timeout);
+            assert(retcode == 0); // Really shouldn't fail to acquire lock here
+
+            printf("\n\nIn acceptor thread. Iteration: %zu\n\n", nreps++);
+
+            retcode = pthread_mutex_unlock(&mtxPrintf);
+            assert(retcode == 0); // Shouldn't fail to unlock either
+         }
+         else
+         {
+            printf( "\n\nclock_gettime() failed for some reason. Still gonna print,\n"
+                    "it just won't come out immediately.\n"
+                    "In acceptor thread. Iteration: %zu\n\n", nreps++);
+         }
+      }
 #endif
 
-   struct sockaddr_in client_info;
-   socklen_t client_info_len = sizeof client_info;
-   int new_conn_sfd = accept( ctx->listening_sfd,
-                              (struct sockaddr *)&client_info,
-                              &client_info_len );
-   if ( new_conn_sfd < 0 )
-   {
-      // TODO: Handle accept() error
-      fprintf( stderr,
-               "Error: accept() returned: %d, errno: %s (%d)\n",
-               new_conn_sfd, strerror(errno), errno );
-      return nullptr;
-   }
-   else if ( client_info_len > sizeof client_info )
-   {
-      // TODO: Handle address getting truncated in accept()
-      fprintf( stderr,
-               "Error: Client address information got truncated.\n" );
-      return nullptr;
-   }
+      struct sockaddr_in client_info;
+      socklen_t client_info_len = sizeof client_info;
+      int new_conn_sfd = accept( ctx->listening_sfd,
+                                 (struct sockaddr *)&client_info,
+                                 &client_info_len );
+      if ( new_conn_sfd < 0 )
+      {
+         // TODO: Handle accept() error
+         fprintf( stderr,
+                  "Error: accept() returned: %d, errno: %s (%d)\n",
+                  new_conn_sfd, strerror(errno), errno );
+         return nullptr;
+      }
+      else if ( client_info_len > sizeof client_info )
+      {
+         // TODO: Handle address getting truncated in accept()
+         fprintf( stderr,
+                  "Error: Client address information got truncated.\n" );
+         return nullptr;
+      }
 
-   struct Client new_client;
-   new_client.sfd  = new_conn_sfd;
-   new_client.addr = client_info.sin_addr.s_addr;
-   new_client.port = client_info.sin_port;
-   new_client.next = nullptr;
+      struct Client new_client;
+      new_client.sfd  = new_conn_sfd;
+      new_client.addr = client_info.sin_addr.s_addr;
+      new_client.port = client_info.sin_port;
+      new_client.next = nullptr;
 
-   bool addedSuccessfully = addClient(ctx, &new_client);
-   if ( !addedSuccessfully )
-   {
-      // TODO: Log lib error and handle this awkward failed client addition
-   }
+      bool addedSuccessfully = addClient(ctx, &new_client);
+      if ( !addedSuccessfully )
+      {
+         // TODO: Log lib error and handle this awkward failed client addition
+      }
 
 #ifndef NDEBUG
-   char addrstr[INET_ADDRSTRLEN];
-   const char * retcode = inet_ntop( AF_INET,
-                                     &(struct in_addr){ .s_addr = new_client.addr },
-                                     addrstr,
-                                     sizeof addrstr );
-   assert(retcode != nullptr); // inet_ntop better succeed, since this info
-                               // came from accept()
+      char addrstr[INET_ADDRSTRLEN];
+      const char * retcode = inet_ntop( AF_INET,
+                                        &(struct in_addr){ .s_addr = new_client.addr },
+                                        addrstr,
+                                        sizeof addrstr );
+      assert(retcode != nullptr); // inet_ntop better succeed, since this info
+                                  // came from accept()
 
-   printf( "New client added! %d\n"
-           "\tSrc IP Address: %s\n"
-           "\tSrc Port: %d\n"
-           "Talking to us on port: %d\n",
-           new_client.sfd, addrstr, ntohs(new_client.port), ctx->listening_port );
+      printf( "New client added! %d\n"
+              "\tSrc IP Address: %s\n"
+              "\tSrc Port: %d\n"
+              "Talking to us on port: %d\n",
+              new_client.sfd, addrstr, ntohs(new_client.port), ctx->listening_port );
 #endif
+   }
+
+   printf("Exiting acceptor thread... Performed %zu iterations.\n", nreps);
 
    return nullptr;
 }
@@ -600,9 +627,48 @@ static void * responderThread(void * arg)
    struct StreamContext * ctx = arg;
    static size_t nreps = 0;
 
+   while ( ctx->enabled && nreps < MAX_THREAD_REPS )
+   {
 #ifndef NDEBUG
-   printf("In responder thread. Iteration: %zu", nreps);
+      if ( /*nreps % 10 == 0*/ true )
+      {
+         // I'm only concerned to mutex-lock around the printf here because
+         // it precedes a blocking call - accept(). The only other time I'd care
+         // to mutex-lock around a printf is if I care about a specific sequence
+         // of printf's going through.
+         struct timespec lock_timeout;
+         int retcode = clock_gettime(CLOCK_REALTIME, &lock_timeout);
+         if ( retcode == 0 )
+         {
+            lock_timeout.tv_sec += MAX_MTX_PRINTF_LOCK_WAIT_SEC;
+
+            retcode = pthread_mutex_timedlock(&mtxPrintf, &lock_timeout);
+            assert(retcode == 0); // Really shouldn't fail to acquire lock
+
+            printf("\n\nIn responder thread. Iteration: %zu\n\n", nreps++);
+
+            retcode = pthread_mutex_unlock(&mtxPrintf);
+            assert(retcode == 0); // Also shouldn't fail to unlock
+         }
+         else
+         {
+            printf( "\n\nclock_gettime() failed for some reason. Still gonna print,\n"
+                    "it just won't come out immediately.\n"
+                    "In responder thread. Iteration: %zu\n\n", nreps++);
+         }
+      }
 #endif
+
+      unsigned int seconds_remaining = sleep(10);
+      if ( seconds_remaining > 0 )
+      {
+         // sleep() was interrupted by a signal, and I'll just take that for
+         // now as a prompt to stop the thread
+         break;
+      }
+   }
+
+   printf("Exiting responder thread... Performed %zu iterations.\n", nreps);
 
    return nullptr;
 }
@@ -616,6 +682,13 @@ static bool addClient( struct StreamContext * ctx,
            || (ctx->clients.head == nullptr && ctx->clients.len == 0) );
    assert(client_info->sfd >= 0);
    assert(client_info->next == nullptr);
+
+   if ( ctx->clients.len >= MAX_CLIENTS )
+   {
+      fprintf( stderr, "Clientelle is full! %zu is the max.\n"
+                       "Please close a connection first.\n", MAX_CLIENTS);
+      return false;
+   }
 
    // It is assumed that the client object is temporary and we need to
    // dynamically allocate a client object here to then place in the client list
@@ -674,9 +747,10 @@ static bool rmvClient( struct StreamContext * ctx,
    assert(ctx != nullptr);
    assert(ctx->clients.head != nullptr); // list should not be empty
    assert(ctx->clients.len > 0);
+   assert(ctx->clients.len <= MAX_CLIENTS); // if list is longer, something went wrong
    assert(ip != 0);
    assert(port != 0);
-
+   
    // Find client in list based on IP and port
    // First, lock list
    struct timespec lock_timeout;
@@ -749,6 +823,8 @@ static bool rmvClient( struct StreamContext * ctx,
 
    // Free client object
    free(old_client);
+
+   assert(ctx->clients.len < SIZE_MAX); // Underflow assertion
 
    return true;
 }

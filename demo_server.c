@@ -759,26 +759,21 @@ static void * acceptorThread(void * arg)
 
 static void * responderThread(void * arg)
 {
-   // TODO
    struct ServerContext * ctx = arg;
    size_t nreps = 0;
 
    while ( ctx->enabled && nreps++ < MAX_THREAD_REPS )
    {
 #ifndef NDEBUG
-      if ( nreps == 1 || nreps % 10 == 0 )
-      {
-         printf("\n\tIn responder thread. Iteration: %zu\n", nreps);
-      }
+      //if ( nreps == 1 || nreps % 10 == 0 )
+      //{
+      //   printf("\n\tIn responder thread. Iteration: %zu\n", nreps);
+      //}
 #endif
 
-      unsigned int seconds_remaining = sleep(1);
-      if ( seconds_remaining > 0 )
-      {
-         // sleep() was interrupted by a signal, and I'll just take that for
-         // now as a prompt to stop the thread
-         break;
-      }
+      // Receive data from threads, placing that data into a "last 100 bytes"
+      // buffer
+      // TODO
    }
 
    printf("\tExiting responder thread... Performed %zu iterations.\n", nreps);

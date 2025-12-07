@@ -627,32 +627,7 @@ static void * acceptorThread(void * arg)
    {
 #ifndef NDEBUG
       if ( nreps % 10 == 0 )
-      {
-         // I'm only concerned to mutex-lock around the printf here because
-         // it precedes a blocking call - accept(). The only other time I'd care
-         // to mutex-lock around a printf is if I care about a specific sequence
-         // of printf's going through.
-         struct timespec lock_timeout;
-         int retcode = clock_gettime(CLOCK_REALTIME, &lock_timeout);
-         if ( retcode == 0 )
-         {
-            lock_timeout.tv_sec += MAX_MTX_PRINTF_LOCK_WAIT_SEC;
-
-            retcode = pthread_mutex_timedlock(&mtxPrintf, &lock_timeout);
-            assert(retcode == 0); // Really shouldn't fail to acquire lock here
-
-            printf("\n\nIn acceptor thread. Iteration: %zu\n\n", nreps++);
-
-            retcode = pthread_mutex_unlock(&mtxPrintf);
-            assert(retcode == 0); // Shouldn't fail to unlock either
-         }
-         else
-         {
-            printf( "\n\nclock_gettime() failed for some reason. Still gonna print,\n"
-                    "it just won't come out immediately.\n"
-                    "In acceptor thread. Iteration: %zu\n\n", nreps++);
-         }
-      }
+         printf("\n\nIn acceptor thread. Iteration: %zu\n\n", nreps++);
 #endif
 
       struct sockaddr_in client_info;
@@ -720,32 +695,7 @@ static void * responderThread(void * arg)
    {
 #ifndef NDEBUG
       if ( /*nreps % 10 == 0*/ true )
-      {
-         // I'm only concerned to mutex-lock around the printf here because
-         // it precedes a blocking call - accept(). The only other time I'd care
-         // to mutex-lock around a printf is if I care about a specific sequence
-         // of printf's going through.
-         struct timespec lock_timeout;
-         int retcode = clock_gettime(CLOCK_REALTIME, &lock_timeout);
-         if ( retcode == 0 )
-         {
-            lock_timeout.tv_sec += MAX_MTX_PRINTF_LOCK_WAIT_SEC;
-
-            retcode = pthread_mutex_timedlock(&mtxPrintf, &lock_timeout);
-            assert(retcode == 0); // Really shouldn't fail to acquire lock
-
-            printf("\n\nIn responder thread. Iteration: %zu\n\n", nreps++);
-
-            retcode = pthread_mutex_unlock(&mtxPrintf);
-            assert(retcode == 0); // Also shouldn't fail to unlock
-         }
-         else
-         {
-            printf( "\n\nclock_gettime() failed for some reason. Still gonna print,\n"
-                    "it just won't come out immediately.\n"
-                    "In responder thread. Iteration: %zu\n\n", nreps++);
-         }
-      }
+         printf("\n\nIn acceptor thread. Iteration: %zu\n\n", nreps++);
 #endif
 
       unsigned int seconds_remaining = sleep(10);

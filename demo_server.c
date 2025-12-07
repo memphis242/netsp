@@ -673,6 +673,10 @@ int main( int argc, char * argv[] )
 static void handleSIGINT(int sig_num)
 {
    (void)sig_num; // Signal number is not necessary here
+
+   if ( bUserEndedSession )
+      abort();
+
    bUserEndedSession = true;
 }
 

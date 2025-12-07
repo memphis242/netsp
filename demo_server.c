@@ -685,11 +685,13 @@ static void * acceptorThread(void * arg)
    struct ServerContext * ctx = arg;
    static size_t nreps = 0;
 
-   while ( ctx->enabled && nreps < MAX_THREAD_REPS )
+   while ( ctx->enabled && nreps++ < MAX_THREAD_REPS )
    {
 #ifndef NDEBUG
-      if ( nreps % 10 == 0 )
-         printf("\n\nIn acceptor thread. Iteration: %zu\n\n", nreps++);
+      if ( nreps == 1 || nreps % 10 == 0 )
+      {
+         printf("\n\tIn acceptor thread. Iteration: %zu\n", nreps);
+      }
 #endif
 
       struct sockaddr_in client_info;
@@ -699,18 +701,26 @@ static void * acceptorThread(void * arg)
                                  &client_info_len );
       if ( new_conn_sfd < 0 )
       {
-         // TODO: Handle accept() error
+         if ( EBADF == errno || EINVAL == errno )
+         {
+            // This may be because main thread closed this socket to wake us
+            // out of accept(), which is desired behavior.
+            printf("\tListening file descriptor has been closed and/or shut down.\n");
+            break;
+         }
+
+         // TODO: Handle other accept() errors
          fprintf( stderr,
-                  "Error: accept() returned: %d, errno: %s (%d): %s\n",
+                  "\tError: accept() returned: %d, errno: %s (%d): %s\n",
                   new_conn_sfd, strerrorname_np(errno), errno, strerror(errno) );
-         return nullptr;
+         continue;
       }
       else if ( client_info_len > sizeof client_info )
       {
          // TODO: Handle address getting truncated in accept()
          fprintf( stderr,
-                  "Error: Client address information got truncated.\n" );
-         return nullptr;
+                  "\tError: Client address information got truncated.\n" );
+         continue;
       }
 
       struct Client new_client;
@@ -734,15 +744,15 @@ static void * acceptorThread(void * arg)
       assert(retcode != nullptr); // inet_ntop better succeed, since this info
                                   // came from accept()
 
-      printf( "New client added! %d\n"
-              "\tSrc IP Address: %s\n"
-              "\tSrc Port: %d\n"
-              "Talking to us on port: %d\n",
+      printf( "\tNew client added! %d\n"
+              "\t\tSrc IP Address: %s\n"
+              "\t\tSrc Port: %d\n"
+              "\tTalking to us on port: %d\n",
               new_client.sfd, addrstr, ntohs(new_client.port), ctx->listening_port );
 #endif
    }
 
-   printf("Exiting acceptor thread... Performed %zu iterations.\n", nreps);
+   printf("\tExiting acceptor thread... Performed %zu iterations.\n", nreps);
 
    return nullptr;
 }
@@ -751,16 +761,18 @@ static void * responderThread(void * arg)
 {
    // TODO
    struct ServerContext * ctx = arg;
-   static size_t nreps = 0;
+   size_t nreps = 0;
 
-   while ( ctx->enabled && nreps < MAX_THREAD_REPS )
+   while ( ctx->enabled && nreps++ < MAX_THREAD_REPS )
    {
 #ifndef NDEBUG
-      if ( /*nreps % 10 == 0*/ true )
-         printf("\n\nIn acceptor thread. Iteration: %zu\n\n", nreps++);
+      if ( nreps == 1 || nreps % 10 == 0 )
+      {
+         printf("\n\tIn responder thread. Iteration: %zu\n", nreps);
+      }
 #endif
 
-      unsigned int seconds_remaining = sleep(10);
+      unsigned int seconds_remaining = sleep(1);
       if ( seconds_remaining > 0 )
       {
          // sleep() was interrupted by a signal, and I'll just take that for
@@ -769,7 +781,7 @@ static void * responderThread(void * arg)
       }
    }
 
-   printf("Exiting responder thread... Performed %zu iterations.\n", nreps);
+   printf("\tExiting responder thread... Performed %zu iterations.\n", nreps);
 
    return nullptr;
 }

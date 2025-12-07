@@ -5,6 +5,7 @@
 
 /*************************** File Header Inclusions ***************************/
 #define _POSIX_C_SOURCE 200809L // Specify atleast POSIX.1-2008 compatibility
+#define _GNU_SOURCE
 
 // General-Purpose Headers
 #include <stdio.h>
@@ -31,6 +32,10 @@
 #include <sys/select.h>
 #include <unistd.h>
 #include <time.h>
+
+#ifndef _GNU_SOURCE
+#define strerrorname_np(str) "strerrorname_np() NOT IMPLEMENTED"
+#endif
 
 /***************************** Local Declarations *****************************/
 #define ARR_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
@@ -129,10 +134,10 @@ int main( int argc, char * argv[] )
    {
       fprintf( stderr,
                "Warning: sigaction() failed to register interrupt signal.\n"
-               "Returned: %d, errno: %s (%d)\n"
+               "Returned: %d, errno: %s (%d): %s\n"
                "You won't be able to stop the program gracefully /w Ctrl+C, \n"
                " though Ctrl+C will still terminate the program.",
-               retcode, strerror(errno), errno );
+               retcode, strerrorname_np(errno), errno, strerror(errno) );
 
       main_retcode |= MAIN_RC_SIGINT_REGISTRATION_ERR;
    }
@@ -303,8 +308,9 @@ int main( int argc, char * argv[] )
          {
             fprintf( stderr,
                      "Error: Failed to create listening socket.\n"
-                     "socket() returned: %d, errno: %s (%d)\n",
-                     sfd_listening, strerror(errno), errno );
+                     "socket() returned: %d, errno: %s (%d): %s\n",
+                     sfd_listening,
+                     strerrorname_np(errno), errno,  strerror(errno) );
             continue;
          }
 
@@ -364,9 +370,10 @@ int main( int argc, char * argv[] )
                      "Error: Failed to bind socket to specified interface:\n"
                      "\tIP Address: %s\n"
                      "\tPort: %d\n"
-                     "bind() returned: %d, errno: %s (%d)\n"
+                     "bind() returned: %d, errno: %s (%d): %s\n"
                      "Socket will be closed. Please try again.\n",
-                     addrbuf, port, retcode, strerror(errno), errno );
+                     addrbuf, ntohs(port), retcode,
+                     strerrorname_np(errno), errno, strerror(errno) );
 
             size_t close_nreps = 0;
             while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
@@ -388,9 +395,9 @@ int main( int argc, char * argv[] )
          {
             fprintf( stderr,
                      "Error: Failed to start listening on interface.\n"
-                     "listen() returned: %d, errno: %s (%d)\n"
+                     "listen() returned: %d, errno: %s (%d): %s\n"
                      "Socket will be closed. Please try again.\n",
-                     retcode, strerror(errno), errno );
+                     retcode, strerrorname_np(errno), errno, strerror(errno) );
 
             size_t close_nreps = 0;
             while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
@@ -412,9 +419,9 @@ int main( int argc, char * argv[] )
          {
             fprintf( stderr,
                      "Error: Failed to allocate context.\n"
-                     "errno: %s (%d)\n"
+                     "errno: %s (%d): %s\n"
                      "Socket will be closed. Please try again.\n",
-                     strerror(errno), errno );
+                     strerrorname_np(errno), errno, strerror(errno) );
 
             size_t close_nreps = 0;
             while ( (retcode = close(sfd_listening)) != 0 && close_nreps++ < 10 );
@@ -446,9 +453,9 @@ int main( int argc, char * argv[] )
          {
             fprintf( stderr,
                      "Error: Failed to create acceptor thread for this context.\n"
-                     "pthread_create() returned: %d : %s\n"
+                     "pthread_create() returned: %d : %s (%d): %s\n"
                      "Socket will be closed and context freed. Please try again.\n",
-                     retcode, strerror(retcode) );
+                     retcode, strerrorname_np(errno), errno, strerror(retcode) );
 
             free(ctx);
 
@@ -475,9 +482,9 @@ int main( int argc, char * argv[] )
          {
             fprintf( stderr,
                      "Error: Failed to create responder thread for this context.\n"
-                     "pthread_create() returned: %d : %s\n"
+                     "pthread_create() returned: %d : %s (%d): %s\n"
                      "Socket will be closed and context freed. Please try again.\n",
-                     retcode, strerror(retcode) );
+                     retcode, strerrorname_np(errno), errno, strerror(retcode) );
 
             free(ctx);
 
@@ -639,8 +646,8 @@ static void * acceptorThread(void * arg)
       {
          // TODO: Handle accept() error
          fprintf( stderr,
-                  "Error: accept() returned: %d, errno: %s (%d)\n",
-                  new_conn_sfd, strerror(errno), errno );
+                  "Error: accept() returned: %d, errno: %s (%d): %s\n",
+                  new_conn_sfd, strerrorname_np(errno), errno, strerror(errno) );
          return nullptr;
       }
       else if ( client_info_len > sizeof client_info )

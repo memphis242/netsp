@@ -351,8 +351,15 @@ int main( int argc, char * argv[] )
          if ( retcode != 0 )
          {
             char addrbuf[INET_ADDRSTRLEN];
-            const char * rc = inet_ntop(AF_INET, &numerical_addr, addrbuf, sizeof numerical_addr);
-            assert(rc != nullptr);
+            const char * rc = inet_ntop(AF_INET, &numerical_addr, addrbuf, INET_ADDRSTRLEN);
+            if ( nullptr == rc )
+            {
+               fprintf( stderr,
+                        "inet_ntop() failed to convert, errno: %s (%d): %s\n",
+                        strerrorname_np(errno), errno, strerror(errno) );
+               assert(rc != nullptr); // Still abort, because this indicates a design issue
+            }
+
             fprintf( stderr,
                      "Error: Failed to bind socket to specified interface:\n"
                      "\tIP Address: %s\n"

@@ -33,6 +33,8 @@
 #include <time.h>
 
 /***************************** Local Declarations *****************************/
+#define ARR_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
+
 constexpr size_t MAX_CLIENTS = 1'000;
 constexpr size_t MAX_SERVERS = 1'000;
 constexpr size_t MAX_THREAD_REPS = 1'000'000;
@@ -51,22 +53,22 @@ static pthread_mutex_t mtxPrintf = PTHREAD_MUTEX_INITIALIZER;
 // TODO: Check that program is actually using these return codes...
 enum MainRetCode
 {
-   MAINRC_FINE                    = 0x0000,
-   MAINRC_SOCKET_CREATION_ERR     = 0x0001,
-   MAINRC_SOCKET_BIND_ERR         = 0x0002,
-   MAINRC_SOCKET_LISTEN_ERR       = 0x0004,
-   MAINRC_SOCKET_ACCEPT_ERR       = 0x0008,
-   MAINRC_SIGINT_REGISTRATION_ERR = 0x0010,
-   MAINRC_NREP_LIM_HIT            = 0x0020,
-   MAINRC_FAILED_CLOSE            = 0x0040,
+   MAIN_RC_FINE                    = 0x0000,
+   MAIN_RC_SOCKET_CREATION_ERR     = 0x0001,
+   MAIN_RC_SOCKET_BIND_ERR         = 0x0002,
+   MAIN_RC_SOCKET_LISTEN_ERR       = 0x0004,
+   MAIN_RC_SOCKET_ACCEPT_ERR       = 0x0008,
+   MAIN_RC_SIGINT_REGISTRATION_ERR = 0x0010,
+   MAIN_RC_NREP_LIM_HIT            = 0x0020,
+   MAIN_RC_FAILED_CLOSE            = 0x0040,
 };
 
 struct Client
 {
-   int sfd; // socket descriptor of server socket communicating /w this client
+   int sfd;
    in_addr_t addr;
    in_port_t port;
-   // linked-list of clients makes arbitrary insertion/removal somewhat easier
+   // Linked-list of clients makes arbitrary insertion/removal somewhat easier.
    struct Client * next;
 };
 
@@ -77,15 +79,15 @@ struct ClientList
    size_t len;
 };
 
-struct StreamContext
+struct ServerContext
 {
    atomic_bool enabled;
+   struct in_addr listening_addr;
+   in_port_t listening_port;
+   int listening_sfd;
    pthread_t acceptor;
    pthread_t responder;
    pthread_mutex_t mtx;
-   int listening_sfd; // socket descriptor
-   struct in_addr listening_addr;
-   in_port_t listening_port;
    struct ClientList clients;
 };
 
@@ -94,11 +96,13 @@ static void handleSIGINT(int sig_num);
 static void * acceptorThread(void * arg);
 static void * responderThread(void * arg);
 
-static bool addClient( struct StreamContext * ctx,
+static bool addClient( struct ServerContext * ctx,
                        const struct Client * client_info );
-static bool rmvClient( struct StreamContext * ctx,
+static bool rmvClient( struct ServerContext * ctx,
                        in_addr_t ip,
                        in_port_t port );
+
+static int tryClose( int sfd );
 
 #ifndef NDEBUG
 bool isFullyNumeric(char * str, size_t len);
@@ -108,8 +112,10 @@ bool isNullTerminated(char * str, size_t max_len);
 /******************************* Main Function ********************************/
 int main( int argc, char * argv[] )
 {
-   int main_retcode = MAINRC_FINE;
+   int main_retcode = MAIN_RC_FINE;
    int retcode; // for system calls
+   struct ServerContext * SrvCtxList[MAX_SERVERS];
+   memset( &SrvCtxList, 0x00, sizeof(SrvCtxList) );
 
    // Register signal handlers
    struct sigaction sa_cfg;
@@ -128,7 +134,7 @@ int main( int argc, char * argv[] )
                " though Ctrl+C will still terminate the program.",
                retcode, strerror(errno), errno );
 
-      main_retcode |= MAINRC_SIGINT_REGISTRATION_ERR;
+      main_retcode |= MAIN_RC_SIGINT_REGISTRATION_ERR;
    }
 
    printf( "Hello! This is the REPL for a demo IPv4-only server.\n"
@@ -139,7 +145,7 @@ int main( int argc, char * argv[] )
            "\t- udp-socks\n"
            "\t- udp-close sock_id\n"
            "\t- udp-close-all\n"
-           "\t- tcp-create-listener [ip_address : port]\n"
+           "\t- tcp-create [ip_address : port]\n"
            "\t- tcp-begin-accepting\n"
            "\t- tcp-stop-accepting\n"
            "\t- tcp-close sock_id\n"
@@ -394,7 +400,7 @@ int main( int argc, char * argv[] )
             continue;
          }
 
-         struct StreamContext * ctx = calloc( 1, sizeof(struct StreamContext) );
+         struct ServerContext * ctx = calloc( 1, sizeof(struct ServerContext) );
          if ( nullptr == ctx )
          {
             fprintf( stderr,
@@ -497,7 +503,83 @@ int main( int argc, char * argv[] )
       }
    }
 
-   // FIXME: pthread_join() on any open threads!
+   puts("Closing all contexts...");
+   // I'd really like to `for ( auto& ctx : SrvCtxList )`...
+   struct ServerContext ** begin = &SrvCtxList[0];
+   struct ServerContext ** end   = begin + ARR_LEN(SrvCtxList);
+   for ( struct ServerContext ** ctx = &SrvCtxList[0];
+         ctx < end;
+         ctx++ )
+   {
+      // Disable threads
+      (*ctx)->enabled = false;
+
+      // Await for threads to return and join back in here
+      retcode = pthread_join((*ctx)->acceptor, nullptr);
+      assert(retcode == 0); // pthread_join should not fail with proper design
+      retcode = pthread_join((*ctx)->responder, nullptr);
+      assert(retcode == 0); // pthread_join should not fail with proper design
+
+      // Close out mutexes
+      retcode = pthread_mutex_destroy(&(*ctx)->mtx);
+      assert(retcode == 0); // The only error would be EBUSY, (mtx is locked),
+                            // and that indicates bad design
+
+      // Close listening socket
+      retcode = tryClose((*ctx)->listening_sfd);
+      if ( retcode != 0 )
+      {
+         fprintf( stderr,
+                  "Unable to close listening socket %d after repeated attempts.\n",
+                  (*ctx)->listening_sfd );
+         // TODO: Log?
+      }
+
+      //// Close client sockets
+      //assert( (*ctx)->clients.len <= MAX_CLIENTS );
+      //assert( (*ctx)->clients.len == 0
+      //        || ( (*ctx)->clients.len > 0
+      //             && (*ctx)->clients.head != nullptr
+      //             && (*ctx)->clients.tail != nullptr ) );
+
+      //size_t nclients = 0;
+      //struct Client * client;
+
+      //for ( client = (*ctx)->clients.head;
+      //      client != nullptr && nclients++ <= (*ctx)->clients.len;
+      //      client = client->next )
+      //{
+      //   retcode = tryClose(client->sfd);
+      //   if ( retcode != 0 )
+      //   {
+      //      fprintf( stderr,
+      //               "Unable to close client socket %d after repeated attempts.\n"
+      //               "Client's IP Address: 0x%08X, Port: %d\n",
+      //               client->sfd, ntohl(client->addr), ntohs(client->port) );
+      //      // TODO: Log?
+      //   }
+      //}
+      //assert(client == (*ctx)->clients.tail); // Double-check that we reached the tail
+
+      //// Zero-out client objects and free them
+      //struct Client * prev = (*ctx)->clients.head;
+      //struct Client * curr = (*ctx)->clients.head->next;
+      //nclients = 0;
+
+      //for ( ;
+      //      curr != nullptr && nclients++ <= (*ctx)->clients.len;
+      //      prev = curr, curr = curr->next )
+      //{
+      //   memset( prev, 0x00, sizeof(struct Client) );
+      //   free(prev);
+      //}
+      //memset( prev, 0x00, sizeof(struct Client) );
+      //free(prev);
+
+      // Zero-out server context object and free it
+      //memset((*ctx), 0x00, sizeof(struct ServerContext) );
+      //free((*ctx));
+   }
 
    puts("");
    puts("");
@@ -507,7 +589,7 @@ int main( int argc, char * argv[] )
               "Session ended. Please restart program.\n",
               nreps, NMAX );
 
-      main_retcode |= MAINRC_NREP_LIM_HIT;
+      main_retcode |= MAIN_RC_NREP_LIM_HIT;
    }
    else
    {
@@ -531,7 +613,7 @@ static void handleSIGINT(int sig_num)
 
 static void * acceptorThread(void * arg)
 {
-   struct StreamContext * ctx = arg;
+   struct ServerContext * ctx = arg;
    static size_t nreps = 0;
 
    while ( ctx->enabled && nreps < MAX_THREAD_REPS )
@@ -624,7 +706,7 @@ static void * acceptorThread(void * arg)
 static void * responderThread(void * arg)
 {
    // TODO
-   struct StreamContext * ctx = arg;
+   struct ServerContext * ctx = arg;
    static size_t nreps = 0;
 
    while ( ctx->enabled && nreps < MAX_THREAD_REPS )
@@ -673,7 +755,7 @@ static void * responderThread(void * arg)
    return nullptr;
 }
 
-static bool addClient( struct StreamContext * ctx,
+static bool addClient( struct ServerContext * ctx,
                        const struct Client * client_info )
 {
    assert(ctx != nullptr);
@@ -740,7 +822,7 @@ static bool addClient( struct StreamContext * ctx,
    return true;
 }
 
-static bool rmvClient( struct StreamContext * ctx,
+static bool rmvClient( struct ServerContext * ctx,
                        in_addr_t ip,
                        in_port_t port )
 {
@@ -829,7 +911,18 @@ static bool rmvClient( struct StreamContext * ctx,
    return true;
 }
 
-static bool rmvAllClients( struct StreamContext * ctx ); // TODO
+static bool rmvAllClients( struct ServerContext * ctx ); // TODO
+
+static int tryClose( int sfd )
+{
+   size_t n = 0;
+   int retcode;
+   do {
+      retcode = close(sfd);
+   } while ( retcode != 0 && n < 5 );
+
+   return retcode;
+}
 
 #ifndef NDEBUG
 bool isFullyNumeric(char * str, size_t len)

@@ -119,7 +119,8 @@ int main( int argc, char * argv[] )
 {
    int main_retcode = MAIN_RC_FINE;
    int retcode; // for system calls
-   struct ServerContext * SrvCtxList[MAX_SERVERS];
+   static struct ServerContext * SrvCtxList[MAX_SERVERS];
+   static size_t SrvCtxListIdx = 0;
    memset( &SrvCtxList, 0x00, sizeof(SrvCtxList) );
 
    // Register signal handlers
@@ -504,6 +505,7 @@ int main( int argc, char * argv[] )
          }
 
          ctx->enabled = true; // strictest memory ordering seq_cst is fine here
+         SrvCtxList[ SrvCtxListIdx++ ] = ctx;
 
          printf("Successfully created listening context.\n");
       }
@@ -517,6 +519,7 @@ int main( int argc, char * argv[] )
       }
    }
 
+   puts("");
    puts("Closing all contexts...");
    // I'd really like to `for ( auto& ctx : SrvCtxList )`...
    struct ServerContext ** begin = &SrvCtxList[0];
@@ -525,21 +528,27 @@ int main( int argc, char * argv[] )
          ctx < end;
          ctx++ )
    {
-      // Disable threads
+      if ( nullptr == *ctx )
+         continue;
+
+      // Disable thread infinite loops
       (*ctx)->enabled = false;
 
-      // Await for threads to return and join back in here
-      retcode = pthread_join((*ctx)->acceptor, nullptr);
-      assert(retcode == 0); // pthread_join should not fail with proper design
-      retcode = pthread_join((*ctx)->responder, nullptr);
-      assert(retcode == 0); // pthread_join should not fail with proper design
+      // Shut down listening socket - this will also unblock any pending accept() calls
+      retcode = shutdown( (*ctx)->listening_sfd, SHUT_RD );
+      if ( retcode != 0)
+      {
+         fprintf( stderr,
+                  "Unable to shutdown listening socket %d.\n"
+                  "errno: %s (%d): %s\n",
+                  (*ctx)->listening_sfd,
+                  strerrorname_np(errno), errno, strerror(errno) );
 
-      // Close out mutexes
-      retcode = pthread_mutex_destroy(&(*ctx)->mtx);
-      assert(retcode == 0); // The only error would be EBUSY, (mtx is locked),
-                            // and that indicates bad design
+         continue;
+      }
 
       // Close listening socket
+      printf("Closing listening socket for this context...\n");
       retcode = tryClose((*ctx)->listening_sfd);
       if ( retcode != 0 )
       {
@@ -547,52 +556,94 @@ int main( int argc, char * argv[] )
                   "Unable to close listening socket %d after repeated attempts.\n",
                   (*ctx)->listening_sfd );
          // TODO: Log?
+
+         continue;
       }
 
-      //// Close client sockets
-      //assert( (*ctx)->clients.len <= MAX_CLIENTS );
-      //assert( (*ctx)->clients.len == 0
-      //        || ( (*ctx)->clients.len > 0
-      //             && (*ctx)->clients.head != nullptr
-      //             && (*ctx)->clients.tail != nullptr ) );
+      // Shut down client sockets - this will also unblock any pending accept() calls
 
-      //size_t nclients = 0;
-      //struct Client * client;
+      // Close client sockets - this will likewise unblock any blocking receive calls
+      printf("Shutting down and closing all client sockets"
+             "that were opened for this context...\n");
+      assert( (*ctx)->clients.len <= MAX_CLIENTS );
+      assert( ( (*ctx)->clients.len == 0
+                  && (*ctx)->clients.head == nullptr
+                  && (*ctx)->clients.tail == nullptr )
+              ||
+              ( (*ctx)->clients.len > 0
+                  && (*ctx)->clients.head != nullptr
+                  && (*ctx)->clients.tail != nullptr ) );
 
-      //for ( client = (*ctx)->clients.head;
-      //      client != nullptr && nclients++ <= (*ctx)->clients.len;
-      //      client = client->next )
-      //{
-      //   retcode = tryClose(client->sfd);
-      //   if ( retcode != 0 )
-      //   {
-      //      fprintf( stderr,
-      //               "Unable to close client socket %d after repeated attempts.\n"
-      //               "Client's IP Address: 0x%08X, Port: %d\n",
-      //               client->sfd, ntohl(client->addr), ntohs(client->port) );
-      //      // TODO: Log?
-      //   }
-      //}
-      //assert(client == (*ctx)->clients.tail); // Double-check that we reached the tail
+      if ( (*ctx)->clients.len > 0 )
+      {
+         size_t nclients = 0;
+         struct Client * client;
 
-      //// Zero-out client objects and free them
-      //struct Client * prev = (*ctx)->clients.head;
-      //struct Client * curr = (*ctx)->clients.head->next;
-      //nclients = 0;
+         for ( client = (*ctx)->clients.head;
+               client != nullptr && nclients++ <= (*ctx)->clients.len;
+               client = client->next )
+         {
+            retcode = shutdown( (*ctx)->listening_sfd, SHUT_RD );
+            if ( retcode != 0)
+            {
+               fprintf( stderr,
+                        "Unable to shutdown client socket %d.\n"
+                        "errno: %s (%d): %s\n",
+                        (*ctx)->listening_sfd,
+                        strerrorname_np(errno), errno, strerror(errno) );
+            }
 
-      //for ( ;
-      //      curr != nullptr && nclients++ <= (*ctx)->clients.len;
-      //      prev = curr, curr = curr->next )
-      //{
-      //   memset( prev, 0x00, sizeof(struct Client) );
-      //   free(prev);
-      //}
-      //memset( prev, 0x00, sizeof(struct Client) );
-      //free(prev);
+            retcode = tryClose(client->sfd);
+            if ( retcode != 0 )
+            {
+               fprintf( stderr,
+                        "Unable to close client socket %d after repeated attempts.\n"
+                        "Client's IP Address: 0x%08X, Port: %d\n",
+                        client->sfd, ntohl(client->addr), ntohs(client->port) );
+               // TODO: Log?
+            }
+         }
+         assert(client == (*ctx)->clients.tail); // Double-check that we reached the tail
+      }
+
+      // Now we can await for threads to return and join back in here
+      printf("Joining in the acceptor and responder threads of this context...\n");
+      retcode = pthread_join((*ctx)->acceptor, nullptr);
+      assert(retcode == 0); // pthread_join should not fail with proper design
+      retcode = pthread_join((*ctx)->responder, nullptr);
+      assert(retcode == 0); // pthread_join should not fail with proper design
+
+      // Close out mutexes
+      printf("Closing out mutexes...\n");
+      retcode = pthread_mutex_destroy(&(*ctx)->mtx);
+      assert(retcode == 0); // The only error would be EBUSY, (mtx is locked),
+                            // and that indicates bad design
+
+      // Zero-out client objects and free them
+      printf("Zeroing out client objects and freeing them...\n");
+      if ( (*ctx)->clients.len > 0 )
+      {
+         struct Client * prev = (*ctx)->clients.head;
+         struct Client * curr = (*ctx)->clients.head->next;
+         size_t nclients = 0;
+
+         for ( ;
+               curr != nullptr && nclients++ <= (*ctx)->clients.len;
+               prev = curr, curr = curr->next )
+         {
+            memset( prev, 0x00, sizeof(struct Client) );
+            free(prev);
+         }
+         memset( prev, 0x00, sizeof(struct Client) );
+         free(prev);
+      }
 
       // Zero-out server context object and free it
-      //memset((*ctx), 0x00, sizeof(struct ServerContext) );
-      //free((*ctx));
+      printf("Zeroing out server context object and freeing it...\n");
+      memset((*ctx), 0x00, sizeof(struct ServerContext) );
+      free((*ctx));
+
+      printf("Done cleaning out this server context!\n");
    }
 
    puts("");

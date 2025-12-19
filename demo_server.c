@@ -42,11 +42,12 @@
 
 constexpr size_t MAX_CLIENTS = 1'000;
 constexpr size_t MAX_SERVERS = 1'000;
-constexpr size_t MAX_THREAD_REPS = 1'000'000;
+constexpr size_t MAX_THREAD_REPS = 1'000'000; // fall-back limit on thread loops
 constexpr int STREAM_LISTEN_QUEUE_SZ = 5;
 // Honestly, 1 second is too long, but let's optimize later
 constexpr time_t MAX_MTX_LOCK_WAIT_SEC = 1;
 constexpr time_t MAX_MTX_PRINTF_LOCK_WAIT_SEC = 3;
+constexpr size_t RECENT_CLIENT_DATA_STORAGE_CAPACITY = 2000; // bytes
 
 static volatile sig_atomic_t bUserEndedSession = false;
 
@@ -73,6 +74,9 @@ struct Client
    int sfd;
    in_addr_t addr;
    in_port_t port;
+   uint8_t recent_data[ RECENT_CLIENT_DATA_STORAGE_CAPACITY ];
+   size_t data_head_idx;
+   time_t last_update_timestamp;
    // Linked-list of clients makes arbitrary insertion/removal somewhat easier.
    struct Client * next;
 };
@@ -98,8 +102,9 @@ struct ServerContext
 
 static void handleSIGINT(int sig_num);
 
-static void * acceptorThread(void * arg);
-static void * responderThread(void * arg);
+static void * acceptorThread(void * arg); // arg will be struct ServerContext *
+static void * receiverThread(void * arg); // arg will be struct ServerContext *
+static void * housekeeperThread(void * arg); // arg will be struct ServerContext *
 
 static bool addClient( struct ServerContext * ctx,
                        const struct Client * client_info );
@@ -477,7 +482,7 @@ int main( int argc, char * argv[] )
 
          retcode = pthread_create( &ctx->responder,
                                    nullptr, // default thread attributes
-                                   responderThread,
+                                   receiverThread,
                                    ctx );
          if ( retcode != 0 )
          {
@@ -757,7 +762,7 @@ static void * acceptorThread(void * arg)
    return nullptr;
 }
 
-static void * responderThread(void * arg)
+static void * receiverThread(void * arg)
 {
    struct ServerContext * ctx = arg;
    size_t nreps = 0;
@@ -771,12 +776,38 @@ static void * responderThread(void * arg)
       //}
 #endif
 
-      // Receive data from threads, placing that data into a "last 100 bytes"
-      // buffer
-      // TODO
+      // Receive data from threads, placing that data into a "recent data" buf
+      // TODO: select() on server context FDs
+      // TODO: check for timeouts on 
    }
 
    printf("\tExiting responder thread... Performed %zu iterations.\n", nreps);
+
+   return nullptr;
+}
+
+static void * housekeeperThread(void * arg)
+{
+   struct ServerContext * ctx = arg;
+   size_t nreps = 0;
+
+   while ( ctx->enabled && nreps++ < MAX_THREAD_REPS )
+   {
+      // TODO: Check for timeouts on server context connections
+      // struct Client
+      // {
+      //    int sfd;
+      //    in_addr_t addr;
+      //    in_port_t port;
+      //    uint8_t recent_data[ RECENT_CLIENT_DATA_STORAGE_CAPACITY ];
+      //    size_t data_head_idx;
+      //    time_t last_update_timestamp;
+      //    // Linked-list of clients makes arbitrary insertion/removal somewhat easier.
+      //    struct Client * next;
+      // };
+      time_t curr_time = time(nullptr);
+      // TODO: Iterate through client list after acquiring lock...
+   }
 
    return nullptr;
 }
